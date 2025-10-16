@@ -33,7 +33,7 @@ export const comparisonMachine = setup({
     events: {} as ComparisonEvent,
   },
   guards: {
-    hasNoTasks: ({ context, event }) =>
+    hasNoTasks: ({ event }) =>
       event.type === 'START' && event.existingTasks.length === 0,
     isHigherAndAtTop: ({ context, event }) =>
       event.type === 'ANSWER' && event.answer === 'higher' && context.currentRank === 0,

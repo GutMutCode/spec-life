@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -120,28 +120,24 @@ export default function TaskList({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [items, setItems] = useState(tasks);
 
-  const taskManager = new TaskManager();
-  const storageService = new StorageService();
+  const taskManager = useMemo(() => new TaskManager(), []);
+  const storageService = useMemo(() => new StorageService(), []);
 
   // Update items when tasks prop changes
-  useState(() => {
+  useEffect(() => {
     setItems(tasks);
-  });
+  }, [tasks]);
 
-  // Drag-and-drop sensors (T116: memoized for performance)
-  const sensors = useMemo(
-    () =>
-      useSensors(
-        useSensor(PointerSensor, {
-          activationConstraint: {
-            distance: 8, // 8px movement required before drag starts
-          },
-        }),
-        useSensor(KeyboardSensor, {
-          coordinateGetter: sortableKeyboardCoordinates,
-        })
-      ),
-    []
+  // Drag-and-drop sensors (T116: configured for accessibility)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement required before drag starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {

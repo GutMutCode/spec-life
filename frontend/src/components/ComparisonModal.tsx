@@ -1,7 +1,7 @@
 import { useComparison } from '@/hooks/useComparison';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useEffect, useRef } from 'react';
-import { getRelativeDeadlineText, truncateText, getPriorityColor } from '@/lib/utils';
+import { getRelativeDeadlineText, truncateText } from '@/lib/utils';
 import type { Task } from '@shared/Task';
 
 interface ComparisonModalProps {
@@ -31,7 +31,6 @@ export default function ComparisonModal({
   onCancel,
 }: ComparisonModalProps) {
   const {
-    state,
     isComparing,
     isPlacing,
     isComplete,
@@ -52,6 +51,12 @@ export default function ComparisonModal({
   // Track previous isOpen value to detect open transition
   const prevIsOpenRef = useRef(false);
 
+  // Handle cancel
+  const handleCancel = () => {
+    cancel();
+    onCancel();
+  };
+
   // T113: Focus trap for modal accessibility
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, handleCancel);
 
@@ -69,12 +74,6 @@ export default function ComparisonModal({
 
   // Note: We don't auto-call onComplete here anymore
   // User must click the Close button in the success screen
-
-  // Handle cancel
-  const handleCancel = () => {
-    cancel();
-    onCancel();
-  };
 
   if (!isOpen) return null;
 

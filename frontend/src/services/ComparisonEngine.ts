@@ -1,7 +1,6 @@
-import { createMachine, interpret, type ActorRefFrom, assign, setup } from 'xstate';
+import { createMachine, interpret, type ActorRefFrom } from 'xstate';
 import { ComparisonState, type ComparisonStep } from '@shared/ComparisonStep';
 import type { Task } from '@shared/Task';
-import { getIncompleteTasks } from '@/lib/indexeddb';
 
 /**
  * ComparisonEngine implements binary search for task priority insertion.
