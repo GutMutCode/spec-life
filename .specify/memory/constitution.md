@@ -1,50 +1,68 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Dynamic Task Priority Manager Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Test-First Development (NON-NEGOTIABLE)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+TDD is mandatory for all business logic implementation:
+- MUST write unit tests before implementation code
+- MUST verify tests fail (red) before implementing
+- MUST follow Red-Green-Refactor cycle
+- Integration tests required for: storage layer, API contracts, FSM state machines
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+**Applies to**: Core services (TaskManager, ComparisonEngine, StorageService), rank shifting logic, comparison workflow
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. Local-First Architecture
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+Data sovereignty and offline capability are paramount:
+- MUST store primary data in client-side IndexedDB
+- MUST function fully without backend connectivity
+- Backend sync is optional enhancement, not dependency
+- Cloud backup uses last-write-wins conflict resolution
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### III. Simplicity Over Cleverness
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+Choose simple, maintainable solutions:
+- Sequential integer ranks (0, 1, 2...) over fractional ranks
+- Binary comparison UI over complex priority scoring
+- Direct state updates over optimistic concurrency
+- YAGNI: Build what spec requires, defer what it doesn't
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### IV. Performance Measurability
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+All performance claims must be verifiable:
+- <2s initial load (SC-001, SC-006)
+- <1s reprioritization (SC-002)
+- <60s task addition with comparison (SC-003)
+- Benchmark with realistic data (500 tasks minimum)
+
+### V. Accessibility & Usability
+
+Interface must be universally accessible:
+- ARIA labels on all interactive elements
+- Keyboard shortcuts for common actions
+- Screen reader compatibility (test with VoiceOver/NVDA)
+- Visual feedback for all state changes
+
+## Development Workflow
+
+### Test Gates
+
+- Phase 2 (Foundational): 100% pass rate required before user stories (T022)
+- Each user story: Independent test must pass before marking complete
+- Phase 9 (Polish): Full test suite must pass (T123)
+
+### Code Review Requirements
+
+- All PRs must verify TDD compliance (tests written first)
+- Performance degradation flagged if >10% slower than baseline
+- Accessibility checklist required for UI changes
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes default practices. Amendments require:
+1. Documented justification in plan.md Complexity Tracking table
+2. Approval before implementation proceeds
+3. Update to this file with version increment
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2025-10-15 | **Last Amended**: 2025-10-15

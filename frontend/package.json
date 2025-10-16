@@ -1,0 +1,51 @@
+{
+  "name": "@task-priority/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@xstate/react": "^4.1.0",
+    "date-fns": "^3.3.1",
+    "dexie": "^4.0.1",
+    "dexie-react-hooks": "^1.1.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.0",
+    "xstate": "^5.18.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.3.1",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "fake-indexeddb": "^6.2.3",
+    "jsdom": "^24.1.3",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.0",
+    "vitest": "^1.3.1"
+  }
+}

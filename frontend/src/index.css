@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  /* Task card styles */
+  .task-card {
+    @apply bg-white rounded-lg shadow-sm p-4 border border-gray-200;
+  }
+
+  .task-card-overdue {
+    @apply border-yellow-400 border-2;
+  }
+
+  /* Priority badge styles */
+  .priority-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "task-priority-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dynamic task priority management with comparison-based ranking",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

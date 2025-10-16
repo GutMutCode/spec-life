@@ -1,0 +1,494 @@
+openapi: 3.0.3
+info:
+  title: Dynamic Task Priority Manager API
+  description: |
+    Optional cloud backup API for the Dynamic Task Priority Manager.
+    Provides authentication and task synchronization for users who want
+    to back up their locally-stored tasks to the cloud.
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+  - url: https://api.taskpriority.example.com/api/v1
+    description: Production
+
+tags:
+  - name: auth
+    description: User authentication operations
+  - name: tasks
+    description: Task CRUD and synchronization operations
+  - name: sync
+    description: Bulk synchronization operations
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Create a new user account for cloud backup access
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      summary: Authenticate user
+      description: Log in with email and password to receive JWT token
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tasks:
+    get:
+      summary: List all tasks
+      description: Retrieve all tasks for the authenticated user, sorted by rank
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: completed
+          in: query
+          description: Filter by completion status
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          description: Maximum number of tasks to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                    description: Total number of tasks matching filter
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a new task
+      description: Add a new task with specified rank (triggers rank shifting)
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tasks/{taskId}:
+    get:
+      summary: Get a specific task
+      description: Retrieve details for a single task by ID
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update a task
+      description: Modify task details or change rank (triggers rank shifting)
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Delete a task
+      description: Remove a task (triggers rank shifting for remaining tasks)
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '204':
+          description: Task successfully deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sync:
+    post:
+      summary: Bulk synchronize tasks
+      description: |
+        Upload local tasks to cloud, download cloud tasks, and resolve conflicts.
+        Uses last-write-wins strategy based on updatedAt timestamps.
+      tags: [sync]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncRequest'
+      responses:
+        '200':
+          description: Synchronization complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      description: UUID of the task
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: SecureP@ss123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: SecureP@ss123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT bearer token for API authentication
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        userId:
+          type: string
+          format: uuid
+          description: User's unique identifier
+        email:
+          type: string
+          format: email
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration timestamp
+
+    Task:
+      type: object
+      required: [id, title, rank, completed, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Task title (trimmed)
+          example: Review pull request #42
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Optional detailed description
+          example: Check code quality, test coverage, and documentation
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional deadline for task completion
+          example: 2025-10-20T14:00:00Z
+        rank:
+          type: integer
+          minimum: 0
+          description: Priority rank (0 = highest priority)
+          example: 3
+        completed:
+          type: boolean
+          description: Whether task is marked complete
+          example: false
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when task was completed
+          example: null
+        createdAt:
+          type: string
+          format: date-time
+          description: Task creation timestamp
+          example: 2025-10-15T10:30:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+          example: 2025-10-15T11:45:00Z
+
+    CreateTaskRequest:
+      type: object
+      required: [title, rank]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Implement drag-and-drop feature
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: Use dnd-kit library for sortable task list
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+          example: 2025-10-25T17:00:00Z
+        rank:
+          type: integer
+          minimum: 0
+          description: Desired rank position (triggers shifting of existing tasks)
+          example: 2
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        deadline:
+          type: string
+          format: date-time
+          nullable: true
+        rank:
+          type: integer
+          minimum: 0
+          description: New rank position (triggers rank shifting)
+        completed:
+          type: boolean
+          description: Mark task as complete/incomplete
+
+    SyncRequest:
+      type: object
+      required: [localTasks, lastSyncAt]
+      properties:
+        localTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          description: All tasks from local IndexedDB
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last successful sync (null if first sync)
+          example: 2025-10-15T09:00:00Z
+
+    SyncResponse:
+      type: object
+      properties:
+        serverTasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          description: Current state of tasks on server after merge
+        conflicts:
+          type: array
+          items:
+            type: object
+            properties:
+              taskId:
+                type: string
+                format: uuid
+              resolution:
+                type: string
+                enum: [local_wins, server_wins]
+                description: Which version was kept (last-write-wins)
+              localUpdatedAt:
+                type: string
+                format: date-time
+              serverUpdatedAt:
+                type: string
+                format: date-time
+        syncedAt:
+          type: string
+          format: date-time
+          description: Timestamp of this sync operation
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: Human-readable error message
+          example: Task title must be between 1 and 200 characters
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error context
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: VALIDATION_ERROR
+            message: Invalid task data
+            details:
+              title: Title must not be empty
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: UNAUTHORIZED
+            message: Invalid or expired token
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: NOT_FOUND
+            message: Task not found

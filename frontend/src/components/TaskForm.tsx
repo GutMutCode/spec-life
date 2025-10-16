@@ -1,0 +1,197 @@
+import { useState, FormEvent } from 'react';
+import { validateTaskTitle, validateDescription, validateDeadline } from '@/lib/validation';
+import type { Task } from '@shared/Task';
+
+interface TaskFormProps {
+  onSubmit: (taskData: Partial<Task>) => void;
+  onCancel: () => void;
+  initialData?: Partial<Task>;
+}
+
+interface FormErrors {
+  title?: string;
+  description?: string;
+  deadline?: string;
+}
+
+/**
+ * Form component for creating/editing tasks.
+ *
+ * Features:
+ * - Title input (required, max 200 chars)
+ * - Description textarea (optional, max 2000 chars)
+ * - Deadline date picker (optional, must be future date)
+ * - Real-time validation with error messages
+ * - Character count indicators
+ * - Accessible form labels and error messages
+ *
+ * Per FR-031: Validates all inputs before submission.
+ * Per FR-032: Provides clear error feedback.
+ */
+export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormProps) {
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [deadline, setDeadline] = useState(
+    initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : ''
+  );
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  /**
+   * Validates all form fields and returns true if valid.
+   */
+  const validate = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    // Validate title
+    const titleValidation = validateTaskTitle(title);
+    if (!titleValidation.valid) {
+      newErrors.title = titleValidation.error;
+    }
+
+    // Validate description if provided
+    if (description) {
+      const descValidation = validateDescription(description);
+      if (!descValidation.valid) {
+        newErrors.description = descValidation.error;
+      }
+    }
+
+    // Validate deadline if provided
+    if (deadline) {
+      const deadlineDate = new Date(deadline);
+      const deadlineValidation = validateDeadline(deadlineDate);
+      if (!deadlineValidation.valid) {
+        newErrors.deadline = deadlineValidation.error;
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * Handles form submission with validation.
+   */
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) {
+      return;
+    }
+
+    const taskData: Partial<Task> = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      deadline: deadline ? new Date(deadline) : undefined,
+    };
+
+    onSubmit(taskData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6" data-testid="task-form">
+      {/* Title Field */}
+      <div>
+        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+          Task Title <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.title ? 'border-red-500' : 'border-gray-300'
+          }`}
+          placeholder="Enter task title"
+          maxLength={200}
+          data-testid="title-input"
+        />
+        <div className="flex justify-between mt-1">
+          <div>
+            {errors.title && (
+              <p className="text-sm text-red-600" data-testid="title-error">
+                {errors.title}
+              </p>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            {title.length}/200
+          </p>
+        </div>
+      </div>
+
+      {/* Description Field */}
+      <div>
+        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+          Description <span className="text-gray-400">(optional)</span>
+        </label>
+        <textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.description ? 'border-red-500' : 'border-gray-300'
+          }`}
+          placeholder="Add more details about this task"
+          rows={4}
+          maxLength={2000}
+          data-testid="description-input"
+        />
+        <div className="flex justify-between mt-1">
+          <div>
+            {errors.description && (
+              <p className="text-sm text-red-600" data-testid="description-error">
+                {errors.description}
+              </p>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            {description.length}/2000
+          </p>
+        </div>
+      </div>
+
+      {/* Deadline Field */}
+      <div>
+        <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-2">
+          Deadline <span className="text-gray-400">(optional)</span>
+        </label>
+        <input
+          type="date"
+          id="deadline"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.deadline ? 'border-red-500' : 'border-gray-300'
+          }`}
+          data-testid="deadline-input"
+        />
+        {errors.deadline && (
+          <p className="text-sm text-red-600 mt-1" data-testid="deadline-error">
+            {errors.deadline}
+          </p>
+        )}
+      </div>
+
+      {/* Form Actions */}
+      <div className="flex gap-4 pt-4">
+        <button
+          type="submit"
+          className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          data-testid="submit-button"
+        >
+          Continue to Comparison
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+          data-testid="cancel-button"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}

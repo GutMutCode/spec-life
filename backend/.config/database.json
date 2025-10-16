@@ -1,0 +1,11 @@
+{
+  "dev": {
+    "database_url": "postgresql://localhost:5432/task_priority_dev"
+  },
+  "test": {
+    "database_url": "postgresql://localhost:5432/task_priority_test"
+  },
+  "production": {
+    "database_url": "${DATABASE_URL}"
+  }
+}
