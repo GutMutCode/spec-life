@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
  * - Error handling
  */
 export default function Dashboard() {
-  const { topTask, loading, error, refresh, completeTask, deleteTask } = useTasks();
+  const { topTask, loading, error, completeTask, deleteTask } = useTasks();
   const navigate = useNavigate();
 
   // Loading state (T109)

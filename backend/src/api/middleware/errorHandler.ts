@@ -38,7 +38,7 @@ export function errorHandler(
   error: Error | ApiError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void {
   // Log error for debugging
   console.error('Error:', {
@@ -119,7 +119,7 @@ export function errorHandler(
  */
 export function notFoundHandler(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void {
   const error = new ApiError(404, `Route ${req.originalUrl} not found`);
