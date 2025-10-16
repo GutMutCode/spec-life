@@ -89,11 +89,16 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" data-testid="task-form">
-      {/* Title Field */}
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6"
+      data-testid="task-form"
+      aria-label="Create new task form"
+    >
+      {/* Title Field - T112 */}
       <div>
         <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-          Task Title <span className="text-red-500">*</span>
+          Task Title <span className="text-red-500" aria-label="required">*</span>
         </label>
         <input
           type="text"
@@ -106,22 +111,30 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
           placeholder="Enter task title"
           maxLength={200}
           data-testid="title-input"
+          aria-required="true"
+          aria-invalid={!!errors.title}
+          aria-describedby={errors.title ? 'title-error' : undefined}
         />
         <div className="flex justify-between mt-1">
           <div>
             {errors.title && (
-              <p className="text-sm text-red-600" data-testid="title-error">
+              <p
+                id="title-error"
+                className="text-sm text-red-600"
+                data-testid="title-error"
+                role="alert"
+              >
                 {errors.title}
               </p>
             )}
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500" aria-label={`${title.length} of 200 characters used`}>
             {title.length}/200
           </p>
         </div>
       </div>
 
-      {/* Description Field */}
+      {/* Description Field - T112 */}
       <div>
         <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
           Description <span className="text-gray-400">(optional)</span>
@@ -137,22 +150,29 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
           rows={4}
           maxLength={2000}
           data-testid="description-input"
+          aria-invalid={!!errors.description}
+          aria-describedby={errors.description ? 'description-error' : undefined}
         />
         <div className="flex justify-between mt-1">
           <div>
             {errors.description && (
-              <p className="text-sm text-red-600" data-testid="description-error">
+              <p
+                id="description-error"
+                className="text-sm text-red-600"
+                data-testid="description-error"
+                role="alert"
+              >
                 {errors.description}
               </p>
             )}
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500" aria-label={`${description.length} of 2000 characters used`}>
             {description.length}/2000
           </p>
         </div>
       </div>
 
-      {/* Deadline Field */}
+      {/* Deadline Field - T112 */}
       <div>
         <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-2">
           Deadline <span className="text-gray-400">(optional)</span>
@@ -166,20 +186,28 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
             errors.deadline ? 'border-red-500' : 'border-gray-300'
           }`}
           data-testid="deadline-input"
+          aria-invalid={!!errors.deadline}
+          aria-describedby={errors.deadline ? 'deadline-error' : undefined}
         />
         {errors.deadline && (
-          <p className="text-sm text-red-600 mt-1" data-testid="deadline-error">
+          <p
+            id="deadline-error"
+            className="text-sm text-red-600 mt-1"
+            data-testid="deadline-error"
+            role="alert"
+          >
             {errors.deadline}
           </p>
         )}
       </div>
 
-      {/* Form Actions */}
+      {/* Form Actions - T112 */}
       <div className="flex gap-4 pt-4">
         <button
           type="submit"
           className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           data-testid="submit-button"
+          aria-label="Submit task and continue to priority comparison"
         >
           Continue to Comparison
         </button>
@@ -188,6 +216,7 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
           onClick={onCancel}
           className="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
           data-testid="cancel-button"
+          aria-label="Cancel task creation and return to dashboard"
         >
           Cancel
         </button>

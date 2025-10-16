@@ -74,3 +74,15 @@ frontend/tests/e2e/screenshots/*.png
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Nix
+.direnv/
+result
+result-*
+
+# Local PostgreSQL
+.postgres/
+logfile
+
+# Local pnpm store
+.pnpm/

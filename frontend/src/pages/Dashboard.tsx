@@ -1,5 +1,6 @@
 import { useTasks } from '@/hooks/useTasks';
 import TaskCard from '@/components/TaskCard';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -11,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
  *
  * Features:
  * - Shows task with rank 0 (or lowest available rank) prominently
- * - Loading state while fetching data
+ * - Loading state while fetching data (T109)
  * - Empty state when no tasks exist
  * - Error handling
  */
@@ -19,14 +20,11 @@ export default function Dashboard() {
   const { topTask, loading, error, refresh, completeTask, deleteTask } = useTasks();
   const navigate = useNavigate();
 
-  // Loading state
+  // Loading state (T109)
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12" data-testid="loading-state">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mb-4"></div>
-          <p className="text-gray-600">Loading your top priority...</p>
-        </div>
+        <LoadingSpinner size="large" text="Loading your top priority..." />
       </div>
     );
   }

@@ -67,51 +67,95 @@ export const useTasks = () => {
   }, []);
 
   /**
-   * Completes a task, shifts ranks, and refreshes the list (T074).
+   * Completes a task, shifts ranks, and refreshes the list (T074, T117).
+   * Uses optimistic UI updates for immediate feedback.
    */
   const completeTask = useCallback(
     async (id: string) => {
+      // Optimistic update (T117)
+      const previousTopTask = topTask;
+      const previousActiveTasks = activeTasks;
+
+      // Remove task from UI immediately
+      setActiveTasks((prev) => prev.filter((task) => task.id !== id));
+      if (topTask?.id === id) {
+        setTopTask(activeTasks.find((task) => task.id !== id && task.rank === 0));
+      }
+
       try {
         await storageService.completeTask(id);
         await refresh();
       } catch (err) {
+        // Revert optimistic update on error
+        setTopTask(previousTopTask);
+        setActiveTasks(previousActiveTasks);
         setError(err instanceof Error ? err : new Error('Failed to complete task'));
         throw err;
       }
     },
-    [refresh]
+    [refresh, topTask, activeTasks]
   );
 
   /**
-   * Deletes a task and refreshes the list (T075).
+   * Deletes a task and refreshes the list (T075, T117).
+   * Uses optimistic UI updates for immediate feedback.
    */
   const deleteTask = useCallback(
     async (id: string) => {
+      // Optimistic update (T117)
+      const previousTopTask = topTask;
+      const previousActiveTasks = activeTasks;
+
+      // Remove task from UI immediately
+      setActiveTasks((prev) => prev.filter((task) => task.id !== id));
+      if (topTask?.id === id) {
+        setTopTask(activeTasks.find((task) => task.id !== id && task.rank === 0));
+      }
+
       try {
         await storageService.deleteTask(id);
         await refresh();
       } catch (err) {
+        // Revert optimistic update on error
+        setTopTask(previousTopTask);
+        setActiveTasks(previousActiveTasks);
         setError(err instanceof Error ? err : new Error('Failed to delete task'));
         throw err;
       }
     },
-    [refresh]
+    [refresh, topTask, activeTasks]
   );
 
   /**
-   * Updates a task and refreshes the list.
+   * Updates a task and refreshes the list (T117).
+   * Uses optimistic UI updates for immediate feedback.
    */
   const updateTask = useCallback(
     async (id: string, updates: Partial<Task>) => {
+      // Optimistic update (T117)
+      const previousTopTask = topTask;
+      const previousActiveTasks = activeTasks;
+
+      // Update task in UI immediately
+      setActiveTasks((prev) =>
+        prev.map((task) => (task.id === id ? { ...task, ...updates } : task))
+      );
+      if (topTask?.id === id) {
+        setTopTask({ ...topTask, ...updates });
+      }
+
       try {
         await storageService.updateTask(id, updates);
         await refresh();
       } catch (err) {
+        // Revert optimistic update on error
+        setTopTask(previousTopTask);
+        setActiveTasks(previousActiveTasks);
         setError(err instanceof Error ? err : new Error('Failed to update task'));
         throw err;
       }
     },
-    [refresh]
+    [refresh, topTask, activeTasks]
   );
 
   // Load initial data

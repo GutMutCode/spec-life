@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -128,23 +128,27 @@ export default function TaskList({
     setItems(tasks);
   });
 
-  // Drag-and-drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement required before drag starts
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+  // Drag-and-drop sensors (T116: memoized for performance)
+  const sensors = useMemo(
+    () =>
+      useSensors(
+        useSensor(PointerSensor, {
+          activationConstraint: {
+            distance: 8, // 8px movement required before drag starts
+          },
+        }),
+        useSensor(KeyboardSensor, {
+          coordinateGetter: sortableKeyboardCoordinates,
+        })
+      ),
+    []
   );
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-  };
+  }, []);
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -178,18 +182,18 @@ export default function TaskList({
     }
 
     setActiveId(null);
-  };
+  }, [items, onTasksChange, taskManager]);
 
-  const handleDragCancel = () => {
+  const handleDragCancel = useCallback(() => {
     setActiveId(null);
-  };
+  }, []);
 
-  const handleSave = async (taskId: string, updates: Partial<Task>) => {
+  const handleSave = useCallback(async (taskId: string, updates: Partial<Task>) => {
     await storageService.updateTask(taskId, updates);
     if (onTasksChange) {
       onTasksChange();
     }
-  };
+  }, [onTasksChange, storageService]);
 
   // Empty state
   if (tasks.length === 0) {
@@ -213,7 +217,11 @@ export default function TaskList({
     );
   }
 
-  const activeTask = activeId ? items.find((task) => task.id === activeId) : null;
+  // Memoize active task lookup (T116)
+  const activeTask = useMemo(
+    () => (activeId ? items.find((task) => task.id === activeId) : null),
+    [activeId, items]
+  );
 
   // Draggable list
   if (draggable) {

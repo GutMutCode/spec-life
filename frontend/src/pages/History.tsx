@@ -1,8 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StorageService } from '@/services/StorageService';
 import type { Task } from '@shared/Task';
 import { formatDeadline } from '@/lib/utils';
+
+/**
+ * Format completion date relative to now (T116: memoization helper).
+ */
+function formatCompletionDate(date: Date | undefined): string {
+  if (!date) return 'Unknown date';
+
+  const now = new Date();
+  const completedDate = new Date(date);
+  const diffMs = now.getTime() - completedDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+
+  return completedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: completedDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
 
 /**
  * History page - displays completed tasks in reverse chronological order.
@@ -116,27 +139,6 @@ export default function History() {
       </div>
     );
   }
-
-  // Format completion date
-  const formatCompletionDate = (date: Date | undefined): string => {
-    if (!date) return 'Unknown date';
-
-    const now = new Date();
-    const completedDate = new Date(date);
-    const diffMs = now.getTime() - completedDate.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-
-    return completedDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: completedDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-    });
-  };
 
   // Main history view
   return (

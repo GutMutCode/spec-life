@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useMachine } from '@xstate/react';
 import { comparisonMachine } from '@/services/comparisonMachine';
 import { TaskManager, type InsertTaskResult } from '@/services/TaskManager';
@@ -115,13 +115,16 @@ export function useComparison() {
     }
   }, [current.value, current.context.finalRank, insertResult]);
 
-  // Compute current comparison task
-  const currentTask =
-    current.matches('comparing') &&
-    current.context.currentRank >= 0 &&
-    current.context.currentRank < current.context.existingTasks.length
-      ? current.context.existingTasks[current.context.currentRank]
-      : undefined;
+  // Compute current comparison task (T116: memoized)
+  const currentTask = useMemo(
+    () =>
+      current.matches('comparing') &&
+      current.context.currentRank >= 0 &&
+      current.context.currentRank < current.context.existingTasks.length
+        ? current.context.existingTasks[current.context.currentRank]
+        : undefined,
+    [current.value, current.context.currentRank, current.context.existingTasks]
+  );
 
   return {
     // State queries

@@ -1,4 +1,5 @@
 import { Outlet, Link } from 'react-router-dom';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 /**
  * Main layout component with header and navigation.
@@ -8,37 +9,44 @@ import { Outlet, Link } from 'react-router-dom';
  * - Dashboard (/)
  * - All Tasks (/tasks)
  * - Add Task (/add)
+ *
+ * T111: Added global keyboard shortcuts
  */
 export default function Layout() {
+  // Enable global keyboard shortcuts (T111)
+  useKeyboardShortcuts();
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      {/* Header - T112 */}
+      <header className="bg-white shadow-sm border-b border-gray-200" role="banner">
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center">
+            <Link to="/" className="flex items-center" aria-label="Task Priority Manager - Go to homepage">
               <h1 className="text-2xl font-bold text-gray-900">
                 Task Priority Manager
               </h1>
             </Link>
 
-            {/* Navigation */}
-            <nav className="flex items-center gap-4">
+            {/* Navigation - T112 */}
+            <nav className="flex items-center gap-4" aria-label="Main navigation">
               <Link
                 to="/"
                 className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                aria-label="Go to Dashboard page"
               >
                 Dashboard
               </Link>
               <Link
                 to="/tasks"
                 className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                aria-label="View all tasks"
               >
                 All Tasks
               </Link>
               <Link
                 to="/history"
                 className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                aria-label="View completed tasks history"
               >
                 History
               </Link>
@@ -47,14 +55,27 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Main content area */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      {/* Main content area - T112 */}
+      <main
+        className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8"
+        role="main"
+        aria-label="Page content"
+      >
         <Outlet />
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto py-6 text-center text-sm text-gray-500">
+      {/* Footer (T111, T112) */}
+      <footer className="mt-auto py-6 text-center text-sm text-gray-500" role="contentinfo">
         <p>Built with React + TypeScript + Tailwind CSS</p>
+        <p className="mt-2">
+          <kbd
+            className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono"
+            aria-label="Question mark key"
+          >
+            ?
+          </kbd>{' '}
+          for keyboard shortcuts
+        </p>
       </footer>
     </div>
   );

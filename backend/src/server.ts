@@ -4,6 +4,7 @@
  * Main server entry point for the Task Priority Manager API.
  * Created: 2025-10-16
  * Task: T087 (Backend Setup)
+ * T110: Added centralized error handling middleware
  */
 
 import express from 'express';
@@ -79,31 +80,16 @@ app.get('/', (_req, res) => {
 // Mount route handlers
 import authRoutes from './api/routes/auth.js';
 import taskRoutes from './api/routes/tasks.js';
+import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
 
 app.use('/auth', authRoutes);
 app.use('/tasks', taskRoutes);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.path} not found`,
-  });
-});
+// 404 handler (T110) - must come AFTER all routes
+app.use(notFoundHandler);
 
-// Error handler middleware
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
-  res.status(statusCode).json({
-    error: err.name || 'Error',
-    message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
-});
+// Centralized error handler middleware (T110) - must come LAST
+app.use(errorHandler);
 
 // Start server
 async function startServer() {

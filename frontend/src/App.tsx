@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './components/Toast';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AddTask from './pages/AddTask';
@@ -16,22 +17,25 @@ import History from './pages/History';
  * - /history : Completed tasks history (US5 - T076)
  *
  * T105: Wrapped entire app with ErrorBoundary for error handling
+ * T107: Added ToastProvider for success/error notifications
  */
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="/add" element={<AddTask />} />
-            <Route path="/tasks" element={<AllTasks />} />
-            <Route path="/history" element={<History />} />
-            {/* 404 - redirect to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="/add" element={<AddTask />} />
+              <Route path="/tasks" element={<AllTasks />} />
+              <Route path="/history" element={<History />} />
+              {/* 404 - redirect to home */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </ErrorBoundary>
   );
 }

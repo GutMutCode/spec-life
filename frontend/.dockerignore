@@ -1,0 +1,47 @@
+# Node modules
+node_modules
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+
+# Build artifacts
+dist
+.vite
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Development files
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Testing
+coverage
+.nyc_output
+test-results
+playwright-report
+playwright/.cache
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Documentation
+README.md
+*.md

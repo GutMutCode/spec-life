@@ -1,4 +1,5 @@
 import { useComparison } from '@/hooks/useComparison';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useEffect, useRef } from 'react';
 import { getRelativeDeadlineText, truncateText, getPriorityColor } from '@/lib/utils';
 import type { Task } from '@shared/Task';
@@ -51,6 +52,9 @@ export default function ComparisonModal({
   // Track previous isOpen value to detect open transition
   const prevIsOpenRef = useRef(false);
 
+  // T113: Focus trap for modal accessibility
+  const modalRef = useFocusTrap<HTMLDivElement>(isOpen, handleCancel);
+
   // Initialize comparison when modal transitions from closed to open
   useEffect(() => {
     const wasOpen = prevIsOpenRef.current;
@@ -78,17 +82,32 @@ export default function ComparisonModal({
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       data-testid="comparison-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="comparison-modal-title"
+      aria-describedby="comparison-modal-description"
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
+      <div
+        ref={modalRef}
+        className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        tabIndex={-1}
+      >
+        {/* Header - T112 */}
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2
+                id="comparison-modal-title"
+                className="text-2xl font-bold text-gray-900"
+              >
                 {isComparing ? 'Compare Tasks' : isPlacing ? 'Choose Position' : 'Adding Task'}
               </h2>
               {isComparing && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p
+                  id="comparison-modal-description"
+                  className="text-sm text-gray-600 mt-1"
+                  aria-live="polite"
+                >
                   Step {stepCount + 1} of 10 - Which task is more important?
                 </p>
               )}
@@ -97,8 +116,15 @@ export default function ComparisonModal({
               onClick={handleCancel}
               className="text-gray-400 hover:text-gray-600 transition-colors"
               data-testid="cancel-button"
+              aria-label="Close comparison and cancel task creation"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -110,9 +136,9 @@ export default function ComparisonModal({
           </div>
         </div>
 
-        {/* Error State */}
+        {/* Error State - T112 */}
         {error && (
-          <div className="px-6 py-4 bg-red-50 border-b border-red-200">
+          <div className="px-6 py-4 bg-red-50 border-b border-red-200" role="alert">
             <p className="text-red-800 font-medium">Error: {error.message}</p>
           </div>
         )}
@@ -143,6 +169,7 @@ export default function ComparisonModal({
                   onClick={() => answer('higher')}
                   className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                   data-testid="answer-higher"
+                  aria-label={`Mark "${newTask.title}" as more important than "${currentTask?.title}"`}
                 >
                   This is MORE important
                 </button>
@@ -188,18 +215,20 @@ export default function ComparisonModal({
                   onClick={() => answer('lower')}
                   className="w-full bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
                   data-testid="answer-lower"
+                  aria-label={`Mark "${newTask.title}" as less important than "${currentTask?.title}"`}
                 >
                   This is LESS important
                 </button>
               </div>
             </div>
 
-            {/* Skip Button */}
+            {/* Skip Button - T112 */}
             <div className="mt-6 text-center">
               <button
                 onClick={skip}
                 className="text-gray-600 hover:text-gray-800 font-medium underline"
                 data-testid="skip-button"
+                aria-label="Skip comparison and manually choose task position"
               >
                 Skip and choose position manually
               </button>
@@ -217,17 +246,18 @@ export default function ComparisonModal({
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {/* Rank 0 option always available */}
+              {/* Rank 0 option always available - T112 */}
               <button
                 onClick={() => place(0)}
                 className="w-full text-left px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                 data-testid="place-rank-0"
+                aria-label={`Place "${newTask.title}" at top priority (Rank 0)`}
               >
                 <div className="font-semibold text-gray-900">Place at top (Rank 0)</div>
                 <div className="text-sm text-gray-600">Highest priority</div>
               </button>
 
-              {/* Show other rank options based on existing tasks */}
+              {/* Show other rank options based on existing tasks - T112 */}
               {Array.from({ length: Math.max(5, existingTasks.length) }, (_, i) => i + 1).map(
                 (rank) => (
                   <button
@@ -235,6 +265,7 @@ export default function ComparisonModal({
                     onClick={() => place(rank)}
                     className="w-full text-left px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                     data-testid={`place-rank-${rank}`}
+                    aria-label={`Place "${newTask.title}" at rank ${rank}`}
                   >
                     <div className="font-semibold text-gray-900">Place at Rank {rank}</div>
                   </button>
@@ -298,6 +329,7 @@ export default function ComparisonModal({
               onClick={() => onComplete(insertedTask)}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
               data-testid="close-button"
+              aria-label="Close comparison modal and return to dashboard"
             >
               Close
             </button>

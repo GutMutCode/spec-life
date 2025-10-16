@@ -12,10 +12,26 @@ import { generateTaskId } from '@/lib/utils';
 import type { Task } from '@shared/Task';
 
 /**
+ * Custom error class for storage operations (T108).
+ */
+export class StorageError extends Error {
+  constructor(
+    message: string,
+    public readonly operation: string,
+    public readonly cause?: unknown
+  ) {
+    super(message);
+    this.name = 'StorageError';
+  }
+}
+
+/**
  * Service layer for task storage operations.
  *
  * Provides business logic layer between UI components and IndexedDB,
  * handling task creation with auto-generated fields and retrieving tasks.
+ *
+ * T108: Added comprehensive error handling with user-friendly messages.
  */
 export class StorageService {
   /**
@@ -24,10 +40,19 @@ export class StorageService {
    * Per FR-001: "The system always displays the task with rank 0 as the top priority."
    *
    * @returns Promise resolving to the top task, or undefined if no incomplete tasks exist
+   * @throws {StorageError} If database operation fails
    */
   async getTopTask(): Promise<Task | undefined> {
-    const activeTasks = await getIncompleteTasks();
-    return activeTasks.length > 0 ? activeTasks[0] : undefined;
+    try {
+      const activeTasks = await getIncompleteTasks();
+      return activeTasks.length > 0 ? activeTasks[0] : undefined;
+    } catch (error) {
+      throw new StorageError(
+        'Failed to retrieve top task. Please refresh the page.',
+        'getTopTask',
+        error
+      );
+    }
   }
 
   /**
@@ -41,6 +66,7 @@ export class StorageService {
    *
    * @param taskData - Partial task object with at least title and rank
    * @returns Promise resolving to the created task with all fields populated
+   * @throws {StorageError} If database operation fails
    */
   async createTask(taskData: {
     title: string;
@@ -49,30 +75,47 @@ export class StorageService {
     rank: number;
     userId?: string;
   }): Promise<Task> {
-    const now = new Date();
-    const newTask: Task = {
-      id: generateTaskId(),
-      title: taskData.title,
-      description: taskData.description,
-      deadline: taskData.deadline,
-      rank: taskData.rank,
-      completed: false,
-      createdAt: now,
-      updatedAt: now,
-      userId: taskData.userId,
-    };
+    try {
+      const now = new Date();
+      const newTask: Task = {
+        id: generateTaskId(),
+        title: taskData.title,
+        description: taskData.description,
+        deadline: taskData.deadline,
+        rank: taskData.rank,
+        completed: false,
+        createdAt: now,
+        updatedAt: now,
+        userId: taskData.userId,
+      };
 
-    await addTask(newTask);
-    return newTask;
+      await addTask(newTask);
+      return newTask;
+    } catch (error) {
+      throw new StorageError(
+        'Failed to create task. Please try again.',
+        'createTask',
+        error
+      );
+    }
   }
 
   /**
    * Gets all incomplete tasks sorted by rank (priority).
    *
    * @returns Promise resolving to array of tasks sorted by rank (0 = highest priority)
+   * @throws {StorageError} If database operation fails
    */
   async getActiveTasks(): Promise<Task[]> {
-    return getIncompleteTasks();
+    try {
+      return await getIncompleteTasks();
+    } catch (error) {
+      throw new StorageError(
+        'Failed to load tasks. Please refresh the page.',
+        'getActiveTasks',
+        error
+      );
+    }
   }
 
   /**
@@ -80,9 +123,18 @@ export class StorageService {
    *
    * @param id - Task ID
    * @returns Promise resolving to task or undefined if not found
+   * @throws {StorageError} If database operation fails
    */
   async getTaskById(id: string): Promise<Task | undefined> {
-    return getTaskById(id);
+    try {
+      return await getTaskById(id);
+    } catch (error) {
+      throw new StorageError(
+        'Failed to retrieve task details. Please try again.',
+        'getTaskById',
+        error
+      );
+    }
   }
 
   /**
@@ -94,9 +146,18 @@ export class StorageService {
    * @param id - Task ID
    * @param updates - Partial task object with fields to update
    * @returns Promise resolving to number of updated records (1 if successful, 0 if not found)
+   * @throws {StorageError} If database operation fails
    */
   async updateTask(id: string, updates: Partial<Task>): Promise<number> {
-    return updateTask(id, updates);
+    try {
+      return await updateTask(id, updates);
+    } catch (error) {
+      throw new StorageError(
+        'Failed to update task. Please try again.',
+        'updateTask',
+        error
+      );
+    }
   }
 
   /**
@@ -113,39 +174,48 @@ export class StorageService {
    *
    * @param id - Task ID
    * @returns Promise resolving when completion and rank shifting is complete
+   * @throws {StorageError} If database operation fails
    */
   async completeTask(id: string): Promise<void> {
-    // Get the task to complete
-    const taskToComplete = await getTaskById(id);
-    if (!taskToComplete) {
-      return; // Task not found, nothing to do
-    }
+    try {
+      // Get the task to complete
+      const taskToComplete = await getTaskById(id);
+      if (!taskToComplete) {
+        return; // Task not found, nothing to do
+      }
 
-    const completedRank = taskToComplete.rank;
-    const now = new Date();
+      const completedRank = taskToComplete.rank;
+      const now = new Date();
 
-    // Mark task as completed
-    await updateTask(id, {
-      completed: true,
-      completedAt: now,
-      updatedAt: now,
-    });
+      // Mark task as completed
+      await updateTask(id, {
+        completed: true,
+        completedAt: now,
+        updatedAt: now,
+      });
 
-    // Get all incomplete tasks with rank > completedRank
-    const tasksToShift = await db.tasks
-      .where('rank')
-      .above(completedRank)
-      .and((task) => !task.completed)
-      .toArray();
+      // Get all incomplete tasks with rank > completedRank
+      const tasksToShift = await db.tasks
+        .where('rank')
+        .above(completedRank)
+        .and((task) => !task.completed)
+        .toArray();
 
-    // Shift ranks down
-    if (tasksToShift.length > 0) {
-      const updates = tasksToShift.map((task) => ({
-        id: task.id,
-        rank: task.rank - 1,
-      }));
+      // Shift ranks down
+      if (tasksToShift.length > 0) {
+        const updates = tasksToShift.map((task) => ({
+          id: task.id,
+          rank: task.rank - 1,
+        }));
 
-      await bulkUpdateRanks(updates);
+        await bulkUpdateRanks(updates);
+      }
+    } catch (error) {
+      throw new StorageError(
+        'Failed to complete task. Please try again.',
+        'completeTask',
+        error
+      );
     }
   }
 
@@ -161,33 +231,42 @@ export class StorageService {
    *
    * @param id - Task ID
    * @returns Promise resolving when deletion and rank shifting is complete
+   * @throws {StorageError} If database operation fails
    */
   async deleteTask(id: string): Promise<void> {
-    // Get the task to delete
-    const taskToDelete = await getTaskById(id);
-    if (!taskToDelete) {
-      return; // Task not found, nothing to do
-    }
+    try {
+      // Get the task to delete
+      const taskToDelete = await getTaskById(id);
+      if (!taskToDelete) {
+        return; // Task not found, nothing to do
+      }
 
-    const deletedRank = taskToDelete.rank;
+      const deletedRank = taskToDelete.rank;
 
-    // Delete the task
-    await deleteTask(id);
+      // Delete the task
+      await deleteTask(id);
 
-    // Get all tasks with rank > deletedRank
-    const tasksToShift = await db.tasks
-      .where('rank')
-      .above(deletedRank)
-      .toArray();
+      // Get all tasks with rank > deletedRank
+      const tasksToShift = await db.tasks
+        .where('rank')
+        .above(deletedRank)
+        .toArray();
 
-    // Shift ranks down
-    if (tasksToShift.length > 0) {
-      const updates = tasksToShift.map((task) => ({
-        id: task.id,
-        rank: task.rank - 1,
-      }));
+      // Shift ranks down
+      if (tasksToShift.length > 0) {
+        const updates = tasksToShift.map((task) => ({
+          id: task.id,
+          rank: task.rank - 1,
+        }));
 
-      await bulkUpdateRanks(updates);
+        await bulkUpdateRanks(updates);
+      }
+    } catch (error) {
+      throw new StorageError(
+        'Failed to delete task. Please try again.',
+        'deleteTask',
+        error
+      );
     }
   }
 
@@ -200,8 +279,17 @@ export class StorageService {
    * Per FR-024: "90-day retention for completed tasks."
    *
    * @returns Promise resolving to array of completed tasks
+   * @throws {StorageError} If database operation fails
    */
   async getCompletedTasks(): Promise<Task[]> {
-    return getCompletedTasks();
+    try {
+      return await getCompletedTasks();
+    } catch (error) {
+      throw new StorageError(
+        'Failed to load completed tasks. Please refresh the page.',
+        'getCompletedTasks',
+        error
+      );
+    }
   }
 }

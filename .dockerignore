@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+specs/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node modules (handled per-service)
+**/node_modules
+
+# Build artifacts (handled per-service)
+**/dist
+**/.vite
+**/coverage
+
+# Testing
+**/test-results
+**/playwright-report
+**/.nyc_output
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nix
+.direnv
+.envrc
+flake.nix
+flake.lock

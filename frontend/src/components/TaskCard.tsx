@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Task } from '@shared/Task';
 import { getPriorityColor, isOverdue, formatDeadline } from '@/lib/utils';
 import { validateTaskTitle, validateDescription, validateDeadline } from '@/lib/validation';
@@ -35,8 +36,9 @@ interface TaskCardProps {
  * - Save/cancel handlers with validation
  * - Drag-and-drop support (T062, T064)
  * - Responsive design
+ * - Memoized for performance (T115)
  */
-export default function TaskCard({
+function TaskCard({
   task,
   showRank = false,
   variant = 'compact',
@@ -63,6 +65,14 @@ export default function TaskCard({
 
   const priorityColor = getPriorityColor(task.rank);
   const overdue = isOverdue(task.deadline);
+
+  // Define handleDeleteCancel before useFocusTrap
+  const handleDeleteCancel = () => {
+    setShowDeleteDialog(false);
+  };
+
+  // T113: Focus trap for delete dialog
+  const deleteDialogRef = useFocusTrap<HTMLDivElement>(showDeleteDialog, handleDeleteCancel);
 
   const handleEdit = () => {
     setEditTitle(task.title);
@@ -160,10 +170,6 @@ export default function TaskCard({
     }
   };
 
-  const handleDeleteCancel = () => {
-    setShowDeleteDialog(false);
-  };
-
   const cardClasses = [
     'task-card',
     overdue && !isEditing && 'task-card-overdue',
@@ -195,9 +201,17 @@ export default function TaskCard({
               }`}
               maxLength={200}
               data-testid="edit-title-input"
+              aria-required="true"
+              aria-invalid={!!errors.title}
+              aria-describedby={errors.title ? `edit-title-error-${task.id}` : undefined}
             />
             {errors.title && (
-              <p className="text-sm text-red-600 mt-1" data-testid="edit-title-error">
+              <p
+                id={`edit-title-error-${task.id}`}
+                className="text-sm text-red-600 mt-1"
+                data-testid="edit-title-error"
+                role="alert"
+              >
                 {errors.title}
               </p>
             )}
@@ -219,9 +233,17 @@ export default function TaskCard({
               rows={3}
               maxLength={2000}
               data-testid="edit-description-input"
+              aria-invalid={!!errors.description}
+              aria-describedby={errors.description ? `edit-desc-error-${task.id}` : undefined}
             />
             {errors.description && (
-              <p className="text-sm text-red-600 mt-1">{errors.description}</p>
+              <p
+                id={`edit-desc-error-${task.id}`}
+                className="text-sm text-red-600 mt-1"
+                role="alert"
+              >
+                {errors.description}
+              </p>
             )}
             <p className="text-xs text-gray-500 mt-1">{editDescription.length}/2000</p>
           </div>
@@ -240,9 +262,17 @@ export default function TaskCard({
                 errors.deadline ? 'border-red-500' : 'border-gray-300'
               }`}
               data-testid="edit-deadline-input"
+              aria-invalid={!!errors.deadline}
+              aria-describedby={errors.deadline ? `edit-deadline-error-${task.id}` : undefined}
             />
             {errors.deadline && (
-              <p className="text-sm text-red-600 mt-1">{errors.deadline}</p>
+              <p
+                id={`edit-deadline-error-${task.id}`}
+                className="text-sm text-red-600 mt-1"
+                role="alert"
+              >
+                {errors.deadline}
+              </p>
             )}
           </div>
 
@@ -253,6 +283,7 @@ export default function TaskCard({
               disabled={isSaving}
               className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
               data-testid="save-button"
+              aria-label={isSaving ? 'Saving task changes' : 'Save task changes'}
             >
               {isSaving ? 'Saving...' : 'Save'}
             </button>
@@ -261,6 +292,7 @@ export default function TaskCard({
               disabled={isSaving}
               className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
               data-testid="cancel-button"
+              aria-label="Cancel editing and discard changes"
             >
               Cancel
             </button>
@@ -273,14 +305,22 @@ export default function TaskCard({
   // View mode
   return (
     <div className={cardClasses} data-testid="task-card">
-      {/* Drag handle (if provided) */}
+      {/* Drag handle (if provided) - T112 */}
       {dragHandleProps && (
         <div
           {...dragHandleProps}
           className="cursor-grab active:cursor-grabbing mb-2"
           data-testid="drag-handle"
+          role="button"
+          aria-label={`Drag to reorder task: ${task.title}`}
+          tabIndex={0}
         >
-          <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+          <svg
+            className="w-5 h-5 text-gray-400"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
             <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
           </svg>
         </div>
@@ -300,6 +340,12 @@ export default function TaskCard({
           <span
             className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold bg-${priorityColor} text-white shrink-0`}
             data-testid="rank-badge"
+            aria-label={`Priority rank ${task.rank}${
+              task.rank === 0 ? ' - highest priority' :
+              task.rank <= 3 ? ' - high priority' :
+              task.rank <= 10 ? ' - medium priority' :
+              ' - low priority'
+            }`}
             style={{
               backgroundColor:
                 task.rank === 0
@@ -359,50 +405,71 @@ export default function TaskCard({
 
       {/* Action buttons */}
       <div className="flex gap-2 mt-4">
-        {/* Edit button (if editable) */}
+        {/* Edit button (if editable) - T112 */}
         {editable && onSave && (
           <button
             onClick={handleEdit}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             data-testid="edit-button"
+            aria-label={`Edit task: ${task.title}`}
           >
             Edit
           </button>
         )}
 
-        {/* Complete button (T074) */}
+        {/* Complete button (T074, T112) */}
         {onComplete && (
           <button
             onClick={handleComplete}
             disabled={isCompleting}
             className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:bg-green-400 transition-colors"
             data-testid="complete-button"
+            aria-label={isCompleting ? `Completing task: ${task.title}` : `Mark task complete: ${task.title}`}
+            aria-busy={isCompleting}
           >
             {isCompleting ? 'Completing...' : 'Mark Complete'}
           </button>
         )}
 
-        {/* Delete button (T075) */}
+        {/* Delete button (T075, T112) */}
         {onDelete && (
           <button
             onClick={handleDeleteClick}
             className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 transition-colors"
             data-testid="delete-button"
+            aria-label={`Delete task: ${task.title}`}
           >
             Delete
           </button>
         )}
       </div>
 
-      {/* Delete confirmation dialog (T075) */}
+      {/* Delete confirmation dialog (T075, T112, T113) */}
       {showDeleteDialog && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           data-testid="delete-dialog-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`delete-dialog-title-${task.id}`}
+          aria-describedby={`delete-dialog-desc-${task.id}`}
         >
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4" data-testid="delete-dialog">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Task</h3>
-            <p className="text-gray-600 mb-4">
+          <div
+            ref={deleteDialogRef}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            data-testid="delete-dialog"
+            tabIndex={-1}
+          >
+            <h3
+              id={`delete-dialog-title-${task.id}`}
+              className="text-lg font-semibold text-gray-900 mb-2"
+            >
+              Delete Task
+            </h3>
+            <p
+              id={`delete-dialog-desc-${task.id}`}
+              className="text-gray-600 mb-4"
+            >
               Are you sure you want to delete "{task.title}"? This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
@@ -411,6 +478,7 @@ export default function TaskCard({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
                 data-testid="delete-cancel-button"
+                aria-label="Cancel deletion"
               >
                 Cancel
               </button>
@@ -419,6 +487,8 @@ export default function TaskCard({
                 disabled={isDeleting}
                 className="px-4 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 disabled:bg-red-400 transition-colors"
                 data-testid="delete-confirm-button"
+                aria-label={isDeleting ? 'Deleting task...' : 'Confirm deletion'}
+                aria-busy={isDeleting}
               >
                 {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -429,3 +499,30 @@ export default function TaskCard({
     </div>
   );
 }
+
+/**
+ * Memoized TaskCard component (T115).
+ *
+ * Only re-renders when task data or key props change.
+ * Compares task properties deeply to prevent unnecessary re-renders.
+ */
+export default memo(TaskCard, (prevProps, nextProps) => {
+  // Compare task object properties
+  const taskEqual =
+    prevProps.task.id === nextProps.task.id &&
+    prevProps.task.title === nextProps.task.title &&
+    prevProps.task.description === nextProps.task.description &&
+    prevProps.task.rank === nextProps.task.rank &&
+    prevProps.task.deadline?.getTime() === nextProps.task.deadline?.getTime() &&
+    prevProps.task.completedAt?.getTime() === nextProps.task.completedAt?.getTime();
+
+  // Compare primitive props
+  const propsEqual =
+    prevProps.showRank === nextProps.showRank &&
+    prevProps.variant === nextProps.variant &&
+    prevProps.editable === nextProps.editable &&
+    prevProps.isDragging === nextProps.isDragging;
+
+  // Return true to skip re-render, false to re-render
+  return taskEqual && propsEqual;
+});
