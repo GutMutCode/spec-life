@@ -51,10 +51,14 @@ export default function ComparisonModal({
   // Track previous isOpen value to detect open transition
   const prevIsOpenRef = useRef(false);
 
-  // Handle cancel
+  // Handle cancel - if already complete, treat as close instead
   const handleCancel = () => {
-    cancel();
-    onCancel();
+    if (isComplete && insertedTask) {
+      onComplete(insertedTask);
+    } else {
+      cancel();
+      onCancel();
+    }
   };
 
   // T113: Focus trap for modal accessibility
@@ -115,7 +119,11 @@ export default function ComparisonModal({
               onClick={handleCancel}
               className="text-gray-400 hover:text-gray-600 transition-colors"
               data-testid="cancel-button"
-              aria-label="Close comparison and cancel task creation"
+              aria-label={
+                isComplete
+                  ? "Close and return to dashboard"
+                  : "Close comparison and cancel task creation"
+              }
             >
               <svg
                 className="w-6 h-6"

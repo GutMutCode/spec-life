@@ -22,6 +22,8 @@ export async function seedSampleTasks(): Promise<void> {
       description: '새로운 기능에 대한 상세 기획서를 작성합니다.',
       deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       rank: 0,
+      parentId: null,
+      depth: 0,
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -31,6 +33,8 @@ export async function seedSampleTasks(): Promise<void> {
       title: '코드 리뷰',
       description: '팀원들의 PR을 검토하고 피드백을 제공합니다.',
       rank: 1,
+      parentId: null,
+      depth: 0,
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -41,6 +45,8 @@ export async function seedSampleTasks(): Promise<void> {
       description: '다음 주 스프린트 계획 회의를 위한 자료를 준비합니다.',
       deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
       rank: 2,
+      parentId: null,
+      depth: 0,
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -51,6 +57,8 @@ export async function seedSampleTasks(): Promise<void> {
       description: '프로덕션 환경에서 발견된 버그를 수정합니다.',
       deadline: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // Yesterday (overdue)
       rank: 3,
+      parentId: null,
+      depth: 0,
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),

@@ -27,22 +27,31 @@ export class TaskManager {
    * Inserts a new task at the specified rank and shifts existing tasks.
    *
    * Algorithm:
-   * 1. Get all incomplete tasks with rank >= insertionRank
+   * 1. Get all incomplete tasks with same parentId and rank >= insertionRank
    * 2. Increment their ranks by 1
    * 3. Insert new task at insertionRank
    * 4. All operations in single transaction for atomicity
    *
-   * Example: Insert at rank 1 with existing tasks at ranks 0, 1, 2
+   * Hierarchical behavior:
+   * - Ranks are scoped to tasks with the same parentId
+   * - Top-level tasks (parentId=null) have separate ranks from subtasks
+   * - Each subtask group has its own rank sequence
+   *
+   * Example: Insert at rank 1 with existing tasks at ranks 0, 1, 2 (same parent)
    * - Task at rank 1 → rank 2
    * - Task at rank 2 → rank 3
    * - New task inserted at rank 1
    *
-   * @param taskData - Partial task with at least title
-   * @param insertionRank - Rank to insert at (0 = highest priority)
+   * @param taskData - Partial task with at least title, parentId, and depth
+   * @param insertionRank - Rank to insert at within the same parent (0 = highest priority)
    * @returns Promise resolving to insertion result with task and shift info
    */
   async insertTask(taskData: Partial<Task>, insertionRank: number): Promise<InsertTaskResult> {
     const now = new Date();
+
+    // Determine parentId and depth
+    const parentId = taskData.parentId ?? null;
+    const depth = taskData.depth ?? 0;
 
     // Create new task with auto-generated fields
     const newTask: Task = {
@@ -51,10 +60,13 @@ export class TaskManager {
       description: taskData.description,
       deadline: taskData.deadline,
       rank: insertionRank,
+      parentId,
+      depth,
       completed: false,
       createdAt: now,
       updatedAt: now,
       userId: taskData.userId,
+      collaborators: taskData.collaborators,
     };
 
     // Track shift information
@@ -63,10 +75,13 @@ export class TaskManager {
 
     // Perform insertion and rank shifting in transaction
     await db.transaction('rw', db.tasks, async () => {
-      // Get all incomplete tasks at or after insertion rank
+      // Get all incomplete tasks with same parentId at or after insertion rank
       const allTasks = await db.tasks.toArray();
       const tasksToShift = allTasks.filter(
-        (task) => !task.completed && task.rank >= insertionRank
+        (task) =>
+          !task.completed &&
+          task.parentId === parentId &&
+          task.rank >= insertionRank
       );
 
       // Shift ranks up by 1
@@ -102,22 +117,28 @@ export class TaskManager {
    * Moves a task from one rank to another with bidirectional shifting.
    *
    * Algorithm:
+   * - Only shifts tasks with the same parentId (maintains hierarchy)
    * - If moving up (lower rank number): shift tasks between newRank and oldRank down
    * - If moving down (higher rank number): shift tasks between oldRank and newRank up
    *
-   * Example: Move rank 3 → rank 1
+   * Hierarchical behavior:
+   * - Can only move tasks within the same parent
+   * - Ranks are scoped to tasks with the same parentId
+   *
+   * Example: Move rank 3 → rank 1 (within same parent)
    * - Task at rank 1 → rank 2
    * - Task at rank 2 → rank 3
    * - Moved task → rank 1
    *
    * @param taskId - ID of task to move
-   * @param newRank - Target rank
+   * @param newRank - Target rank within the same parent
    */
   async moveTask(taskId: string, newRank: number): Promise<void> {
     const task = await db.tasks.get(taskId);
     if (!task) throw new Error('Task not found');
 
     const oldRank = task.rank;
+    const parentId = task.parentId;
     if (oldRank === newRank) return; // No move needed
 
     await db.transaction('rw', db.tasks, async () => {
@@ -126,7 +147,11 @@ export class TaskManager {
       if (newRank < oldRank) {
         // Moving up (to lower rank number) - shift tasks down
         const tasksToShift = allTasks.filter(
-          (t) => !t.completed && t.rank >= newRank && t.rank < oldRank
+          (t) =>
+            !t.completed &&
+            t.parentId === parentId &&
+            t.rank >= newRank &&
+            t.rank < oldRank
         );
 
         const updates = tasksToShift.map((t) => ({
@@ -138,7 +163,11 @@ export class TaskManager {
       } else {
         // Moving down (to higher rank number) - shift tasks up
         const tasksToShift = allTasks.filter(
-          (t) => !t.completed && t.rank > oldRank && t.rank <= newRank
+          (t) =>
+            !t.completed &&
+            t.parentId === parentId &&
+            t.rank > oldRank &&
+            t.rank <= newRank
         );
 
         const updates = tasksToShift.map((t) => ({

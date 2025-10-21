@@ -42,6 +42,14 @@ interface TaskListProps {
   onComplete?: (taskId: string) => Promise<void>;
   /** Callback when task is deleted (T075) */
   onDelete?: (taskId: string) => Promise<void>;
+  /** Callback when user wants to add a subtask */
+  onAddSubtask?: (parentTask: Task) => void;
+  /** Function to check if task has subtasks */
+  hasSubtasks?: (taskId: string) => boolean;
+  /** Function to check if task is expanded */
+  isExpanded?: (taskId: string) => boolean;
+  /** Callback when user toggles expand/collapse */
+  onToggleExpand?: (taskId: string) => void;
 }
 
 /**
@@ -55,6 +63,10 @@ function SortableTaskCard({
   onSave,
   onComplete,
   onDelete,
+  onAddSubtask,
+  hasSubtasks,
+  isExpanded,
+  onToggleExpand,
 }: {
   task: Task;
   showRank: boolean;
@@ -63,6 +75,10 @@ function SortableTaskCard({
   onSave?: (taskId: string, updates: Partial<Task>) => Promise<void>;
   onComplete?: (taskId: string) => Promise<void>;
   onDelete?: (taskId: string) => Promise<void>;
+  onAddSubtask?: (parentTask: Task) => void;
+  hasSubtasks?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: (taskId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -73,19 +89,30 @@ function SortableTaskCard({
     transition,
   };
 
+  // Calculate indentation based on depth (32px per level)
+  const indentStyle = {
+    paddingLeft: `${task.depth * 32}px`,
+  };
+
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
-      <TaskCard
-        task={task}
-        showRank={showRank}
-        variant={variant}
-        editable={editable}
-        onSave={onSave}
-        onComplete={onComplete}
-        onDelete={onDelete}
-        dragHandleProps={listeners}
-        isDragging={isDragging}
-      />
+      <div style={indentStyle}>
+        <TaskCard
+          task={task}
+          showRank={showRank}
+          variant={variant}
+          editable={editable}
+          onSave={onSave}
+          onComplete={onComplete}
+          onDelete={onDelete}
+          onAddSubtask={onAddSubtask}
+          dragHandleProps={listeners}
+          isDragging={isDragging}
+          hasSubtasks={hasSubtasks}
+          isExpanded={isExpanded}
+          onToggleExpand={onToggleExpand}
+        />
+      </div>
     </div>
   );
 }
@@ -116,6 +143,10 @@ export default function TaskList({
   onTasksChange,
   onComplete,
   onDelete,
+  onAddSubtask,
+  hasSubtasks,
+  isExpanded,
+  onToggleExpand,
 }: TaskListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [items, setItems] = useState(tasks);
@@ -152,19 +183,35 @@ export default function TaskList({
       return;
     }
 
-    const oldIndex = items.findIndex((item) => item.id === active.id);
-    const newIndex = items.findIndex((item) => item.id === over.id);
+    const draggedTask = items.find((item) => item.id === active.id);
+    const targetTask = items.find((item) => item.id === over.id);
 
-    if (oldIndex !== -1 && newIndex !== -1) {
+    if (!draggedTask || !targetTask) {
+      setActiveId(null);
+      return;
+    }
+
+    // Only allow drag within same parentId (same hierarchy level)
+    if (draggedTask.parentId !== targetTask.parentId) {
+      console.warn('Cannot move task to different parent level');
+      setActiveId(null);
+      return;
+    }
+
+    // Get all tasks with same parentId (siblings)
+    const siblings = items.filter((item) => item.parentId === draggedTask.parentId);
+    const oldIndex = siblings.findIndex((item) => item.id === draggedTask.id);
+    const newIndex = siblings.findIndex((item) => item.id === targetTask.id);
+
+    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
       // Optimistically update UI
-      const newItems = arrayMove(items, oldIndex, newIndex);
+      const newItems = arrayMove(items, items.indexOf(draggedTask), items.indexOf(targetTask));
       setItems(newItems);
 
       try {
-        // Update in database
-        const taskId = active.id as string;
+        // Calculate new rank within siblings
         const newRank = newIndex;
-        await taskManager.moveTask(taskId, newRank);
+        await taskManager.moveTask(draggedTask.id, newRank);
 
         // Notify parent
         if (onTasksChange) {
@@ -242,6 +289,10 @@ export default function TaskList({
                   onSave={handleSave}
                   onComplete={onComplete}
                   onDelete={onDelete}
+                  onAddSubtask={onAddSubtask}
+                  hasSubtasks={hasSubtasks ? hasSubtasks(task.id) : undefined}
+                  isExpanded={isExpanded ? isExpanded(task.id) : undefined}
+                  onToggleExpand={onToggleExpand}
                 />
               ))}
             </div>
@@ -270,16 +321,24 @@ export default function TaskList({
     <div className={`task-list ${className}`} data-testid="task-list">
       <div className="space-y-4">
         {tasks.map((task) => (
-          <TaskCard
+          <div
             key={task.id}
-            task={task}
-            showRank={showRank}
-            variant={variant}
-            editable={editable}
-            onSave={editable ? handleSave : undefined}
-            onComplete={onComplete}
-            onDelete={onDelete}
-          />
+            style={{ paddingLeft: `${task.depth * 32}px` }}
+          >
+            <TaskCard
+              task={task}
+              showRank={showRank}
+              variant={variant}
+              editable={editable}
+              onSave={editable ? handleSave : undefined}
+              onComplete={onComplete}
+              onDelete={onDelete}
+              onAddSubtask={onAddSubtask}
+              hasSubtasks={hasSubtasks ? hasSubtasks(task.id) : undefined}
+              isExpanded={isExpanded ? isExpanded(task.id) : undefined}
+              onToggleExpand={onToggleExpand}
+            />
+          </div>
         ))}
       </div>
 

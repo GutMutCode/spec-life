@@ -2,14 +2,15 @@ import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 /**
- * Keyboard shortcuts hook (T111).
+ * Keyboard shortcuts hook (T111, refactored in T012).
  *
- * Provides global keyboard shortcuts for common actions:
+ * Provides global keyboard shortcuts for navigation actions:
  * - n: Navigate to "Add Task" page
  * - a: Navigate to "All Tasks" page
  * - h: Navigate to "History" page
  * - d: Navigate to "Dashboard" (home)
- * - ?: Show shortcuts help (future enhancement)
+ *
+ * Note: ? key for shortcuts help is handled by useShortcutsHelp hook (002-ui)
  *
  * Shortcuts are disabled when user is typing in an input/textarea.
  *
@@ -70,21 +71,9 @@ export function useKeyboardShortcuts() {
           navigate('/');
           break;
 
-        case '?':
-          // Show shortcuts help (future: could open a modal)
-          event.preventDefault();
-          console.log('Keyboard Shortcuts:\n' +
-            'n - Add new task\n' +
-            'a - View all tasks\n' +
-            'h - View history\n' +
-            'd - Dashboard (home)\n' +
-            '? - Show this help'
-          );
-          // TODO: Show modal with shortcuts list
-          break;
-
         default:
           // No shortcut for this key
+          // Note: '?' is handled by useShortcutsHelp hook (T012)
           break;
       }
     }

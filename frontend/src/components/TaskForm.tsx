@@ -34,7 +34,37 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
   const [deadline, setDeadline] = useState(
     initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : ''
   );
+  const [collaborators, setCollaborators] = useState<string[]>(initialData?.collaborators || []);
+  const [collaboratorInput, setCollaboratorInput] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
+
+  /**
+   * Adds a collaborator from the input field.
+   */
+  const addCollaborator = () => {
+    const name = collaboratorInput.trim();
+    if (name && !collaborators.includes(name)) {
+      setCollaborators([...collaborators, name]);
+      setCollaboratorInput('');
+    }
+  };
+
+  /**
+   * Removes a collaborator by name.
+   */
+  const removeCollaborator = (name: string) => {
+    setCollaborators(collaborators.filter((c) => c !== name));
+  };
+
+  /**
+   * Handles key press in collaborator input (Enter to add).
+   */
+  const handleCollaboratorKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCollaborator();
+    }
+  };
 
   /**
    * Validates all form fields and returns true if valid.
@@ -83,6 +113,7 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
       title: title.trim(),
       description: description.trim() || undefined,
       deadline: deadline ? new Date(deadline) : undefined,
+      collaborators: collaborators.length > 0 ? collaborators : undefined,
     };
 
     onSubmit(taskData);
@@ -198,6 +229,56 @@ export default function TaskForm({ onSubmit, onCancel, initialData }: TaskFormPr
           >
             {errors.deadline}
           </p>
+        )}
+      </div>
+
+      {/* Collaborators Field */}
+      <div>
+        <label htmlFor="collaborator-input" className="block text-sm font-medium text-gray-700 mb-2">
+          Collaborators <span className="text-gray-400">(optional)</span>
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            id="collaborator-input"
+            value={collaboratorInput}
+            onChange={(e) => setCollaboratorInput(e.target.value)}
+            onKeyPress={handleCollaboratorKeyPress}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter name and press Enter"
+            data-testid="collaborator-input"
+          />
+          <button
+            type="button"
+            onClick={addCollaborator}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            data-testid="add-collaborator-button"
+            aria-label="Add collaborator"
+          >
+            Add
+          </button>
+        </div>
+        {collaborators.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {collaborators.map((collaborator) => (
+              <span
+                key={collaborator}
+                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                data-testid="collaborator-tag"
+              >
+                {collaborator}
+                <button
+                  type="button"
+                  onClick={() => removeCollaborator(collaborator)}
+                  className="ml-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+                  aria-label={`Remove ${collaborator}`}
+                  data-testid="remove-collaborator-button"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
         )}
       </div>
 

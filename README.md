@@ -262,16 +262,31 @@ pnpm lint         # Lint TypeScript
 
 ### Keyboard Shortcuts
 
-The application supports keyboard navigation:
+The application supports comprehensive keyboard navigation with visual hints and a help modal:
 
+**Navigation:**
 - `n` - Navigate to Add Task page
 - `a` - Navigate to All Tasks page
 - `h` - Navigate to History page
 - `d` - Navigate to Dashboard
-- `?` - Show keyboard shortcuts help (console)
+
+**Help:**
+- `?` - Show keyboard shortcuts help modal (toggle to close)
+
+**General:**
 - `Tab` / `Shift+Tab` - Navigate between elements
-- `Enter` / `Space` - Activate buttons
-- `Escape` - Close modals
+- `Enter` / `Space` - Activate focused element
+- `Escape` - Close open modals
+
+**Contextual Hints:**
+- Hover over interactive elements (buttons, links) for 500ms to see keyboard shortcut tooltips
+- Focus elements with keyboard navigation to see tooltips immediately
+- Tooltips are automatically hidden on touch-only mobile devices
+
+**Tips:**
+- Press `?` anytime to view all available shortcuts organized by category
+- Shortcuts work from any page (except when typing in input fields)
+- The help modal automatically closes when you press another shortcut key
 
 ### Running Tests
 

@@ -14,10 +14,13 @@ export interface Task {
   description?: string;
   deadline?: Date;
   rank: number;
+  parentId: string | null;
+  depth: number;
   completed: boolean;
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  collaborators?: string[];
 }
 
 export interface CreateTaskDTO {
@@ -26,10 +29,13 @@ export interface CreateTaskDTO {
   description?: string;
   deadline?: Date;
   rank: number;
+  parentId?: string | null;
+  depth?: number;
   completed?: boolean;
   completedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+  collaborators?: string[];
 }
 
 export interface UpdateTaskDTO {
@@ -37,9 +43,12 @@ export interface UpdateTaskDTO {
   description?: string;
   deadline?: Date;
   rank?: number;
+  parentId?: string | null;
+  depth?: number;
   completed?: boolean;
   completedAt?: Date;
   updatedAt?: Date;
+  collaborators?: string[];
 }
 
 export interface TaskResponseDTO {
@@ -48,10 +57,13 @@ export interface TaskResponseDTO {
   description?: string;
   deadline?: string; // ISO 8601 format
   rank: number;
+  parentId: string | null;
+  depth: number;
   completed: boolean;
   completedAt?: string; // ISO 8601 format
   createdAt: string; // ISO 8601 format
   updatedAt: string; // ISO 8601 format
+  collaborators?: string[];
 }
 
 /**
@@ -64,9 +76,12 @@ export function toTaskResponseDTO(task: Task): TaskResponseDTO {
     description: task.description,
     deadline: task.deadline?.toISOString(),
     rank: task.rank,
+    parentId: task.parentId,
+    depth: task.depth,
     completed: task.completed,
     completedAt: task.completedAt?.toISOString(),
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
+    collaborators: task.collaborators,
   };
 }
