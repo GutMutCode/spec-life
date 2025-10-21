@@ -18,10 +18,18 @@ interface TaskCardProps {
   onComplete?: (taskId: string) => Promise<void>;
   /** Callback when task is deleted (T075) */
   onDelete?: (taskId: string) => Promise<void>;
+  /** Callback when user wants to add a subtask */
+  onAddSubtask?: (parentTask: Task) => void;
   /** Additional drag-and-drop props */
   dragHandleProps?: any;
   /** Is being dragged */
   isDragging?: boolean;
+  /** Whether this task has subtasks */
+  hasSubtasks?: boolean;
+  /** Whether subtasks are expanded */
+  isExpanded?: boolean;
+  /** Callback when expand/collapse is toggled */
+  onToggleExpand?: (taskId: string) => void;
 }
 
 /**
@@ -46,8 +54,12 @@ function TaskCard({
   onSave,
   onComplete,
   onDelete,
+  onAddSubtask,
   dragHandleProps,
   isDragging = false,
+  hasSubtasks = false,
+  isExpanded = false,
+  onToggleExpand,
 }: TaskCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -55,6 +67,8 @@ function TaskCard({
   const [editDeadline, setEditDeadline] = useState(
     task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : ''
   );
+  const [editCollaborators, setEditCollaborators] = useState<string[]>(task.collaborators || []);
+  const [collaboratorInput, setCollaboratorInput] = useState('');
   const [errors, setErrors] = useState<{ title?: string; description?: string; deadline?: string }>(
     {}
   );
@@ -74,10 +88,31 @@ function TaskCard({
   // T113: Focus trap for delete dialog
   const deleteDialogRef = useFocusTrap<HTMLDivElement>(showDeleteDialog, handleDeleteCancel);
 
+  const addCollaborator = () => {
+    const name = collaboratorInput.trim();
+    if (name && !editCollaborators.includes(name)) {
+      setEditCollaborators([...editCollaborators, name]);
+      setCollaboratorInput('');
+    }
+  };
+
+  const removeCollaborator = (name: string) => {
+    setEditCollaborators(editCollaborators.filter((c) => c !== name));
+  };
+
+  const handleCollaboratorKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCollaborator();
+    }
+  };
+
   const handleEdit = () => {
     setEditTitle(task.title);
     setEditDescription(task.description || '');
     setEditDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
+    setEditCollaborators(task.collaborators || []);
+    setCollaboratorInput('');
     setErrors({});
     setIsEditing(true);
   };
@@ -123,6 +158,7 @@ function TaskCard({
         title: editTitle.trim(),
         description: editDescription.trim() || undefined,
         deadline: editDeadline ? new Date(editDeadline) : undefined,
+        collaborators: editCollaborators.length > 0 ? editCollaborators : undefined,
       };
 
       if (onSave) {
@@ -276,6 +312,56 @@ function TaskCard({
             )}
           </div>
 
+          {/* Collaborators input */}
+          <div>
+            <label htmlFor={`edit-collaborators-${task.id}`} className="block text-sm font-medium mb-1">
+              Collaborators
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id={`edit-collaborators-${task.id}`}
+                value={collaboratorInput}
+                onChange={(e) => setCollaboratorInput(e.target.value)}
+                onKeyPress={handleCollaboratorKeyPress}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter name and press Enter"
+                data-testid="edit-collaborator-input"
+              />
+              <button
+                type="button"
+                onClick={addCollaborator}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                data-testid="edit-add-collaborator-button"
+                aria-label="Add collaborator"
+              >
+                Add
+              </button>
+            </div>
+            {editCollaborators.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {editCollaborators.map((collaborator) => (
+                  <span
+                    key={collaborator}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    data-testid="edit-collaborator-tag"
+                  >
+                    {collaborator}
+                    <button
+                      type="button"
+                      onClick={() => removeCollaborator(collaborator)}
+                      className="ml-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+                      aria-label={`Remove ${collaborator}`}
+                      data-testid="edit-remove-collaborator-button"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Action buttons */}
           <div className="flex gap-2 pt-2">
             <button
@@ -328,13 +414,39 @@ function TaskCard({
 
       {/* Header with title and rank badge */}
       <div className="flex items-start justify-between gap-4 mb-3">
-        <h3
-          className={`font-semibold ${
-            variant === 'prominent' ? 'text-3xl' : 'text-xl'
-          } text-gray-900 flex-1`}
-        >
-          {task.title}
-        </h3>
+        <div className="flex items-center gap-2 flex-1">
+          {/* Expand/Collapse button (only if has subtasks) */}
+          {hasSubtasks && onToggleExpand && (
+            <button
+              onClick={() => onToggleExpand(task.id)}
+              className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+              aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+              data-testid="toggle-subtasks-button"
+            >
+              <svg
+                className={`w-5 h-5 transition-transform ${isExpanded ? 'transform rotate-90' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          )}
+
+          <h3
+            className={`font-semibold ${
+              variant === 'prominent' ? 'text-3xl' : 'text-xl'
+            } text-gray-900`}
+          >
+            {task.title}
+          </h3>
+        </div>
 
         {showRank && (
           <span
@@ -403,8 +515,38 @@ function TaskCard({
         </div>
       )}
 
+      {/* Collaborators */}
+      {task.collaborators && task.collaborators.length > 0 && (
+        <div className="mb-3">
+          <p className="text-sm text-gray-500 mb-2">Collaborators:</p>
+          <div className="flex flex-wrap gap-2">
+            {task.collaborators.map((collaborator) => (
+              <span
+                key={collaborator}
+                className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                data-testid="collaborator-badge"
+              >
+                {collaborator}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex gap-2 mt-4">
+        {/* Add Subtask button */}
+        {onAddSubtask && (
+          <button
+            onClick={() => onAddSubtask(task)}
+            className="px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 transition-colors"
+            data-testid="add-subtask-button"
+            aria-label={`Add subtask to: ${task.title}`}
+          >
+            + Add Subtask
+          </button>
+        )}
+
         {/* Edit button (if editable) - T112 */}
         {editable && onSave && (
           <button
@@ -514,7 +656,8 @@ export default memo(TaskCard, (prevProps, nextProps) => {
     prevProps.task.description === nextProps.task.description &&
     prevProps.task.rank === nextProps.task.rank &&
     prevProps.task.deadline?.getTime() === nextProps.task.deadline?.getTime() &&
-    prevProps.task.completedAt?.getTime() === nextProps.task.completedAt?.getTime();
+    prevProps.task.completedAt?.getTime() === nextProps.task.completedAt?.getTime() &&
+    JSON.stringify(prevProps.task.collaborators) === JSON.stringify(nextProps.task.collaborators);
 
   // Compare primitive props
   const propsEqual =

@@ -1,17 +1,23 @@
 import { useNavigate } from 'react-router-dom';
+import { useMemo, useState, useCallback } from 'react';
 import { useTasks } from '@/hooks/useTasks';
 import TaskList from '@/components/TaskList';
+import type { Task } from '@shared/Task';
 
 /**
- * AllTasks page - displays the complete task list sorted by priority.
+ * AllTasks page - displays all tasks in hierarchical order.
  *
  * Per US3: "A user wants to see their complete task list, not just the top item.
  * The system displays all tasks sorted by priority, giving context about upcoming work."
  *
  * Features:
- * - Fetches all active tasks from storage
- * - Displays tasks in priority order (rank 0 first)
+ * - Displays complete task hierarchy (top-level tasks with their subtasks)
+ * - Tasks shown with visual indentation based on depth
+ * - Top-level tasks sorted by rank (0 first)
+ * - Subtasks nested under parent tasks, sorted by rank within each level
  * - Shows rank badges for each task
+ * - Inline editing for all tasks
+ * - Add subtask button for each task
  * - Loading state while fetching data
  * - Empty state when no tasks exist
  * - Error handling
@@ -23,6 +29,79 @@ import TaskList from '@/components/TaskList';
 export default function AllTasks() {
   const navigate = useNavigate();
   const { activeTasks, loading, error, refresh, completeTask, deleteTask } = useTasks();
+
+  // Track which tasks are expanded (showing subtasks)
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+
+  // Toggle expand/collapse for a task
+  const toggleExpanded = useCallback((taskId: string) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Expand all tasks
+  const expandAll = useCallback(() => {
+    const allTaskIds = activeTasks.map((task) => task.id);
+    setExpandedTaskIds(new Set(allTaskIds));
+  }, [activeTasks]);
+
+  // Collapse all tasks
+  const collapseAll = useCallback(() => {
+    setExpandedTaskIds(new Set());
+  }, []);
+
+  // Get subtasks for a given task
+  const getSubtasks = useCallback(
+    (taskId: string) => {
+      return activeTasks
+        .filter((t) => t.parentId === taskId)
+        .sort((a, b) => a.rank - b.rank);
+    },
+    [activeTasks]
+  );
+
+  // Build hierarchical task list (respecting expanded/collapsed state)
+  const hierarchicalTasks = useMemo(() => {
+    const topLevel = activeTasks.filter((task) => task.parentId === null);
+    const result: Task[] = [];
+
+    // Helper function to add task and its subtasks recursively
+    const addTaskWithSubtasks = (task: Task) => {
+      result.push(task);
+
+      // Only add subtasks if this task is expanded
+      if (expandedTaskIds.has(task.id)) {
+        const subtasks = getSubtasks(task.id);
+        subtasks.forEach((subtask) => addTaskWithSubtasks(subtask));
+      }
+    };
+
+    // Add all top-level tasks with their subtasks
+    topLevel.forEach((task) => addTaskWithSubtasks(task));
+
+    return result;
+  }, [activeTasks, expandedTaskIds, getSubtasks]);
+
+  /**
+   * Handles adding a subtask under a parent task.
+   * Navigates to AddTask page with parentId and depth in location state.
+   */
+  const handleAddSubtask = (parentTask: Task) => {
+    navigate('/add', {
+      state: {
+        parentId: parentTask.id,
+        depth: parentTask.depth + 1,
+        parentTitle: parentTask.title,
+      },
+    });
+  };
 
   // Loading state
   if (loading) {
@@ -69,7 +148,7 @@ export default function AllTasks() {
   }
 
   // Empty state
-  if (activeTasks.length === 0) {
+  if (hierarchicalTasks.length === 0) {
     return (
       <div className="text-center py-12" data-testid="empty-state">
         <div className="max-w-md mx-auto">
@@ -105,43 +184,62 @@ export default function AllTasks() {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">All Tasks</h1>
-          <p className="text-gray-600">
-            Your complete task list in priority order
-          </p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">All Tasks</h1>
+            <p className="text-gray-600">
+              Complete task hierarchy in priority order
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Dashboard
+            </button>
+            <button
+              onClick={() => navigate('/add')}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Task
+            </button>
+          </div>
         </div>
-        <div className="flex gap-3">
+
+        {/* Expand/Collapse Controls */}
+        <div className="flex gap-2">
           <button
-            onClick={() => navigate('/')}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors flex items-center gap-2"
+            onClick={expandAll}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            Back to Dashboard
+            Expand All
           </button>
+          <span className="text-gray-400">|</span>
           <button
-            onClick={() => navigate('/add')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+            onClick={collapseAll}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Task
+            Collapse All
           </button>
         </div>
       </div>
 
       {/* Task List */}
       <TaskList
-        tasks={activeTasks}
+        tasks={hierarchicalTasks}
         showRank={true}
         variant="compact"
         draggable={true}
@@ -149,6 +247,10 @@ export default function AllTasks() {
         onTasksChange={refresh}
         onComplete={completeTask}
         onDelete={deleteTask}
+        onAddSubtask={handleAddSubtask}
+        hasSubtasks={(taskId) => getSubtasks(taskId).length > 0}
+        isExpanded={(taskId) => expandedTaskIds.has(taskId)}
+        onToggleExpand={toggleExpanded}
       />
     </div>
   );

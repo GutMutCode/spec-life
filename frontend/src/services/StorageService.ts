@@ -35,9 +35,13 @@ export class StorageError extends Error {
  */
 export class StorageService {
   /**
-   * Gets the highest priority incomplete task (rank 0, or lowest available rank).
+   * Gets the highest priority incomplete task (rank 0 at top level).
    *
    * Per FR-001: "The system always displays the task with rank 0 as the top priority."
+   *
+   * Hierarchical behavior:
+   * - Only returns top-level tasks (parentId === null)
+   * - Returns the task with rank 0 among top-level tasks
    *
    * @returns Promise resolving to the top task, or undefined if no incomplete tasks exist
    * @throws {StorageError} If database operation fails
@@ -45,7 +49,9 @@ export class StorageService {
   async getTopTask(): Promise<Task | undefined> {
     try {
       const activeTasks = await getIncompleteTasks();
-      return activeTasks.length > 0 ? activeTasks[0] : undefined;
+      // Filter for top-level tasks only (parentId === null)
+      const topLevelTasks = activeTasks.filter((task) => task.parentId === null);
+      return topLevelTasks.length > 0 ? topLevelTasks[0] : undefined;
     } catch (error) {
       throw new StorageError(
         'Failed to retrieve top task. Please refresh the page.',
@@ -73,7 +79,10 @@ export class StorageService {
     description?: string;
     deadline?: Date;
     rank: number;
+    parentId?: string | null;
+    depth?: number;
     userId?: string;
+    collaborators?: string[];
   }): Promise<Task> {
     try {
       const now = new Date();
@@ -83,10 +92,13 @@ export class StorageService {
         description: taskData.description,
         deadline: taskData.deadline,
         rank: taskData.rank,
+        parentId: taskData.parentId ?? null,
+        depth: taskData.depth ?? 0,
         completed: false,
         createdAt: now,
         updatedAt: now,
         userId: taskData.userId,
+        collaborators: taskData.collaborators,
       };
 
       await addTask(newTask);
@@ -163,11 +175,14 @@ export class StorageService {
   /**
    * Marks a task as completed and shifts ranks of remaining tasks (T071).
    *
-   * When completing a task at rank N:
+   * When completing a task at rank N with parentId P:
    * - Task is marked as completed with completedAt=NOW
-   * - All incomplete tasks with rank > N have their rank decreased by 1
+   * - All incomplete tasks with same parentId and rank > N have their rank decreased by 1
    * - All shifted tasks have updatedAt set to NOW
    * - The task will be removed from active tasks list
+   *
+   * Hierarchical behavior:
+   * - Only shifts tasks with the same parentId (maintains hierarchy)
    *
    * Per FR-022: "Mark task complete with single tap."
    * Per FR-023: "Completed tasks move to history with 90-day retention."
@@ -185,6 +200,7 @@ export class StorageService {
       }
 
       const completedRank = taskToComplete.rank;
+      const parentId = taskToComplete.parentId;
       const now = new Date();
 
       // Mark task as completed
@@ -194,11 +210,11 @@ export class StorageService {
         updatedAt: now,
       });
 
-      // Get all incomplete tasks with rank > completedRank
+      // Get all incomplete tasks with same parentId and rank > completedRank
       const tasksToShift = await db.tasks
         .where('rank')
         .above(completedRank)
-        .and((task) => !task.completed)
+        .and((task) => !task.completed && task.parentId === parentId)
         .toArray();
 
       // Shift ranks down
@@ -222,10 +238,14 @@ export class StorageService {
   /**
    * Deletes a task and shifts ranks of tasks below it (T072).
    *
-   * When deleting a task at rank N:
+   * When deleting a task at rank N with parentId P:
    * - Task is deleted from database
-   * - All tasks with rank > N have their rank decreased by 1
+   * - All tasks with same parentId and rank > N have their rank decreased by 1
    * - All shifted tasks have updatedAt set to NOW
+   *
+   * Hierarchical behavior:
+   * - Only shifts tasks with the same parentId (maintains hierarchy)
+   * - Child tasks (subtasks) are deleted via CASCADE in database
    *
    * Per FR-025: "Delete task with confirmation dialog."
    *
@@ -242,14 +262,16 @@ export class StorageService {
       }
 
       const deletedRank = taskToDelete.rank;
+      const parentId = taskToDelete.parentId;
 
-      // Delete the task
+      // Delete the task (and all its subtasks via cascade)
       await deleteTask(id);
 
-      // Get all tasks with rank > deletedRank
+      // Get all tasks with same parentId and rank > deletedRank
       const tasksToShift = await db.tasks
         .where('rank')
         .above(deletedRank)
+        .and((task) => task.parentId === parentId)
         .toArray();
 
       // Shift ranks down

@@ -37,6 +37,11 @@ export function useComparison() {
   /**
    * Starts comparison workflow with new task data.
    *
+   * Hierarchical behavior:
+   * - Only compares with tasks at the same level (same parentId)
+   * - Top-level tasks (parentId=null) compare with other top-level tasks
+   * - Subtasks compare only with sibling subtasks
+   *
    * @param newTask - Partial task with at least title
    */
   const start = useCallback(
@@ -44,7 +49,12 @@ export function useComparison() {
       setError(null);
       setInsertResult(null);
 
-      const existingTasks = await getIncompleteTasks();
+      const allTasks = await getIncompleteTasks();
+
+      // Filter tasks to only include same-level tasks (same parentId)
+      const parentId = newTask.parentId ?? null;
+      const existingTasks = allTasks.filter((task) => task.parentId === parentId);
+
       send({ type: 'START', newTask, existingTasks });
     },
     [send]

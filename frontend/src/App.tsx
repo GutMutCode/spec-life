@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import AddTask from './pages/AddTask';
 import AllTasks from './pages/AllTasks';
 import History from './pages/History';
+import ShortcutsModal from './components/ShortcutsModal';
+import { useShortcutsHelp } from './hooks/useShortcutsHelp';
 
 /**
  * Main application component with routing configuration.
@@ -18,8 +20,12 @@ import History from './pages/History';
  *
  * T105: Wrapped entire app with ErrorBoundary for error handling
  * T107: Added ToastProvider for success/error notifications
+ * T011: Added keyboard shortcuts help modal (002-ui)
  */
 function App() {
+  // T011: Keyboard shortcuts help modal state (002-ui)
+  const { isOpen, close } = useShortcutsHelp();
+
   return (
     <ErrorBoundary>
       <ToastProvider>
@@ -35,6 +41,9 @@ function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+
+        {/* T011: Shortcuts help modal - available on all pages (002-ui) */}
+        <ShortcutsModal isOpen={isOpen} onClose={close} />
       </ToastProvider>
     </ErrorBoundary>
   );

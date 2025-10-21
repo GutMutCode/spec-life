@@ -1,5 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import ShortcutHint from './ShortcutHint';
 
 /**
  * Main layout component with header and navigation.
@@ -27,29 +28,35 @@ export default function Layout() {
               </h1>
             </Link>
 
-            {/* Navigation - T112 */}
+            {/* Navigation - T112, T022 (added ShortcutHints) */}
             <nav className="flex items-center gap-4" aria-label="Main navigation">
-              <Link
-                to="/"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-                aria-label="Go to Dashboard page"
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/tasks"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-                aria-label="View all tasks"
-              >
-                All Tasks
-              </Link>
-              <Link
-                to="/history"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-                aria-label="View completed tasks history"
-              >
-                History
-              </Link>
+              <ShortcutHint shortcutKey="d" description="Dashboard (home)">
+                <Link
+                  to="/"
+                  className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                  aria-label="Go to Dashboard page"
+                >
+                  Dashboard
+                </Link>
+              </ShortcutHint>
+              <ShortcutHint shortcutKey="a" description="View all tasks">
+                <Link
+                  to="/tasks"
+                  className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                  aria-label="View all tasks"
+                >
+                  All Tasks
+                </Link>
+              </ShortcutHint>
+              <ShortcutHint shortcutKey="h" description="View history">
+                <Link
+                  to="/history"
+                  className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                  aria-label="View completed tasks history"
+                >
+                  History
+                </Link>
+              </ShortcutHint>
             </nav>
           </div>
         </div>
