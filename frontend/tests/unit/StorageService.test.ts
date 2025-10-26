@@ -22,6 +22,7 @@ describe('StorageService', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: crypto.randomUUID(),
@@ -30,6 +31,7 @@ describe('StorageService', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ];
 
@@ -56,6 +58,7 @@ describe('StorageService', () => {
         completedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       };
 
       await db.tasks.add(completedTask);
@@ -73,6 +76,7 @@ describe('StorageService', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: crypto.randomUUID(),
@@ -81,6 +85,7 @@ describe('StorageService', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ];
 

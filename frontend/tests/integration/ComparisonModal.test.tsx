@@ -101,6 +101,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: '2',
@@ -109,6 +110,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ];
 
@@ -144,6 +146,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ]);
 
@@ -185,6 +188,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: '2',
@@ -193,6 +197,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ]);
 
@@ -246,6 +251,7 @@ describe('ComparisonModal Integration Tests', () => {
         completed: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       });
 
       render(
@@ -318,6 +324,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: '2',
@@ -326,6 +333,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
         {
           id: '3',
@@ -334,6 +342,7 @@ describe('ComparisonModal Integration Tests', () => {
           completed: false,
           createdAt: new Date(),
           updatedAt: new Date(),
+          parentId: null,
         },
       ]);
 
@@ -391,6 +400,7 @@ describe('ComparisonModal Integration Tests', () => {
         completed: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       });
 
       render(
@@ -444,6 +454,7 @@ describe('ComparisonModal Integration Tests', () => {
         completed: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       }));
 
       await db.tasks.bulkAdd(tasks);

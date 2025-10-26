@@ -1,3 +1,22 @@
+/**
+ * @file TaskManager.ts
+ * @description Task insertion and movement operations with rank shifting
+ *
+ * CURRENT IMPLEMENTATION: Local-only (IndexedDB)
+ * - All operations are performed in IndexedDB only
+ * - No backend synchronization
+ * - Offline-first architecture
+ *
+ * TODO: Cloud Sync Integration
+ * - [ ] Add API service layer for task operations
+ * - [ ] Implement optimistic updates with rollback
+ * - [ ] Add conflict resolution for concurrent edits
+ * - [ ] Sync rank shifts to backend
+ * - [ ] Handle offline queue for pending operations
+ *
+ * @see /frontend/ARCHITECTURE.md for system architecture
+ */
+
 import { db, bulkUpdateRanks } from '@/lib/indexeddb';
 import { generateTaskId } from '@/lib/utils';
 import type { Task } from '@shared/Task';

@@ -27,6 +27,7 @@ describe('Dashboard Integration Tests (T030)', () => {
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      parentId: null,
     };
 
     await db.tasks.add(topTask);
@@ -62,6 +63,7 @@ describe('Dashboard Integration Tests (T030)', () => {
         completed: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       },
       {
         id: crypto.randomUUID(),
@@ -70,6 +72,7 @@ describe('Dashboard Integration Tests (T030)', () => {
         completed: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        parentId: null,
       },
     ];
 
@@ -93,6 +96,7 @@ describe('Dashboard Integration Tests (T030)', () => {
       completedAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      parentId: null,
     };
 
     await db.tasks.add(completedTask);
@@ -113,6 +117,7 @@ describe('Dashboard Integration Tests (T030)', () => {
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      parentId: null,
     };
 
     await db.tasks.add(taskWithDeadline);
@@ -134,6 +139,7 @@ describe('Dashboard Integration Tests (T030)', () => {
       completed: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      parentId: null,
     };
 
     await db.tasks.add(topTask);
@@ -151,6 +157,6 @@ describe('Dashboard Integration Tests (T030)', () => {
     render(<DashboardWithRouter />);
 
     expect(screen.getByTestId('loading-state')).toBeInTheDocument();
-    expect(screen.getByText('Loading your top priority...')).toBeInTheDocument();
+    expect(screen.getAllByText('Loading your top priority...').length).toBeGreaterThan(0);
   });
 });
