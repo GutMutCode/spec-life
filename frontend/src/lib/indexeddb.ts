@@ -21,7 +21,7 @@
  */
 
 import Dexie, { type EntityTable } from 'dexie';
-import type { Task } from '@shared/Task';
+import type { Task, SyncStatus } from '@shared/Task';
 
 /**
  * Metadata type for storing app-level data like cleanup timestamps.
@@ -32,24 +32,106 @@ export interface Metadata {
 }
 
 /**
- * IndexedDB database for local-first task storage.
+ * Sync Queue Entry
  *
- * Schema version 1:
- * - tasks table with indexes for efficient querying
+ * Stores operations performed offline for later synchronization with server.
  *
- * Schema version 2:
- * - Added metadata table for app-level data (cleanup timestamps, etc.)
+ * WORKFLOW:
+ * 1. User creates/updates/deletes task while offline
+ * 2. Operation added to syncQueue
+ * 3. When online, SyncService processes queue
+ * 4. On success: Remove from queue
+ * 5. On failure: Increment retryCount, retry later
  *
- * Indexes:
- * - id (primary key)
- * - rank (for priority ordering)
- * - completedAt (for filtering completed tasks)
- * - createdAt (for chronological sorting)
- * - [completed+rank] (compound index for filtering incomplete tasks by priority)
+ * RETRY LOGIC:
+ * - Max retries: 5
+ * - Exponential backoff: 1s, 2s, 4s, 8s, 16s
+ * - After 5 failures: Mark as permanent error, notify user
+ *
+ * @see CLOUD_SYNC_MIGRATION.md Phase 3 for implementation details
+ */
+export interface SyncQueueEntry {
+  /**
+   * Auto-increment primary key
+   * Used for ordering (FIFO queue)
+   */
+  queueId?: number;
+
+  /**
+   * ID of task being modified
+   * Used to prevent duplicate operations on same task
+   */
+  taskId: string;
+
+  /**
+   * Type of operation to perform
+   * - create: POST /api/tasks
+   * - update: PUT /api/tasks/:id
+   * - delete: DELETE /api/tasks/:id
+   */
+  operation: 'create' | 'update' | 'delete';
+
+  /**
+   * Operation payload
+   * - create: Full task object
+   * - update: Partial task with changed fields
+   * - delete: Empty object
+   */
+  payload: Partial<Task>;
+
+  /**
+   * When operation was queued
+   * Used for ordering and timeout detection
+   */
+  timestamp: Date;
+
+  /**
+   * Number of retry attempts
+   * Incremented on each failed sync
+   * @default 0
+   */
+  retryCount: number;
+
+  /**
+   * Last error message
+   * Helps debug why sync failed
+   * @example "Network error: Failed to fetch"
+   */
+  lastError?: string;
+}
+
+/**
+ * IndexedDB database for local-first task storage with cloud sync support.
+ *
+ * SCHEMA VERSIONS:
+ *
+ * **Version 1** (Original):
+ * - tasks table with basic indexes
+ *
+ * **Version 2** (App metadata):
+ * - Added metadata table for cleanup timestamps
+ *
+ * **Version 3** (Cloud Sync - Phase 1):
+ * - Added sync fields to tasks (syncStatus, lastSyncedAt, serverUpdatedAt)
+ * - Added syncQueue table for offline operations
+ * - Added indexes for sync operations
+ * - Migration: Mark all existing tasks as 'pending'
+ *
+ * INDEXES:
+ * - **id**: Primary key (UUID)
+ * - **rank**: Priority ordering (0 = highest)
+ * - **completedAt**: Filter completed tasks
+ * - **createdAt**: Chronological sorting
+ * - **[completed+rank]**: Compound index for incomplete tasks by priority
+ * - **syncStatus**: Filter by sync state (pending/syncing/synced/conflict/error)
+ * - **lastSyncedAt**: Find stale tasks needing re-sync
+ *
+ * @see CLOUD_SYNC_MIGRATION.md for sync architecture
  */
 export class TaskDatabase extends Dexie {
   tasks!: EntityTable<Task, 'id'>;
   metadata!: Dexie.Table<Metadata, string>;
+  syncQueue!: Dexie.Table<SyncQueueEntry, number>;
 
   constructor() {
     super('TaskPriorityDB');
@@ -64,6 +146,25 @@ export class TaskDatabase extends Dexie {
       tasks: 'id, rank, completedAt, createdAt, [completed+rank]',
       metadata: 'key',
     });
+
+    // Version 3: Add cloud sync fields and syncQueue table
+    this.version(3)
+      .stores({
+        tasks: 'id, rank, completedAt, createdAt, [completed+rank], syncStatus, lastSyncedAt',
+        metadata: 'key',
+        syncQueue: '++queueId, taskId, operation, timestamp',
+      })
+      .upgrade((tx) => {
+        // Migrate existing tasks: Mark as 'pending' for initial sync
+        return tx
+          .table('tasks')
+          .toCollection()
+          .modify((task: Task) => {
+            task.syncStatus = 'pending';
+            task.lastSyncedAt = undefined;
+            task.serverUpdatedAt = undefined;
+          });
+      });
   }
 }
 
@@ -154,4 +255,94 @@ export const bulkUpdateRanks = async (updates: Array<{ id: string; rank: number 
       await db.tasks.update(id, { rank, updatedAt: now });
     }
   });
+};
+
+// ============================================================================
+// SYNC QUEUE OPERATIONS (Phase 1+)
+// ============================================================================
+
+/**
+ * Add operation to sync queue
+ *
+ * Used when offline or when sync fails.
+ * Operations will be retried when network is available.
+ *
+ * @param entry - Sync queue entry (without queueId, will be auto-generated)
+ * @returns Promise resolving to the queue ID
+ *
+ * @example
+ * ```typescript
+ * // Queue task creation while offline
+ * await addToSyncQueue({
+ *   taskId: task.id,
+ *   operation: 'create',
+ *   payload: task,
+ *   timestamp: new Date(),
+ *   retryCount: 0
+ * });
+ * ```
+ */
+export const addToSyncQueue = async (
+  entry: Omit<SyncQueueEntry, 'queueId'>
+): Promise<number> => {
+  return db.syncQueue.add(entry);
+};
+
+/**
+ * Get all pending sync operations
+ *
+ * Returns operations ordered by timestamp (FIFO).
+ * Used by SyncService to process queue.
+ *
+ * @returns Promise resolving to array of queue entries
+ */
+export const getSyncQueue = async (): Promise<SyncQueueEntry[]> => {
+  return db.syncQueue.orderBy('timestamp').toArray();
+};
+
+/**
+ * Remove operation from sync queue
+ *
+ * Called after successful sync.
+ *
+ * @param queueId - Queue entry ID
+ * @returns Promise resolving when deletion is complete
+ */
+export const removeFromSyncQueue = async (queueId: number): Promise<void> => {
+  return db.syncQueue.delete(queueId);
+};
+
+/**
+ * Update retry count for failed sync operation
+ *
+ * Increments retryCount and updates lastError.
+ * Used when sync fails but should be retried.
+ *
+ * @param queueId - Queue entry ID
+ * @param error - Error message
+ * @returns Promise resolving to number of updated records
+ */
+export const incrementSyncRetry = async (
+  queueId: number,
+  error: string
+): Promise<number> => {
+  const entry = await db.syncQueue.get(queueId);
+  if (!entry) return 0;
+
+  return db.syncQueue.update(queueId, {
+    retryCount: entry.retryCount + 1,
+    lastError: error,
+  });
+};
+
+/**
+ * Clear all sync queue entries
+ *
+ * Used for testing or when resetting sync state.
+ * ⚠️ Use with caution: Will lose offline changes!
+ *
+ * @returns Promise resolving when queue is cleared
+ */
+export const clearSyncQueue = async (): Promise<void> => {
+  return db.syncQueue.clear();
 };
