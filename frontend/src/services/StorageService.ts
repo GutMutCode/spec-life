@@ -28,9 +28,12 @@ import {
   deleteTask,
   bulkUpdateRanks,
   db,
+  addToSyncQueue,
 } from '@/lib/indexeddb';
 import { generateTaskId } from '@/lib/utils';
 import type { Task } from '@shared/Task';
+import { TaskApiService } from './TaskApiService';
+import { syncService } from './SyncService';
 
 /**
  * Custom error class for storage operations (T108).
@@ -53,8 +56,18 @@ export class StorageError extends Error {
  * handling task creation with auto-generated fields and retrieving tasks.
  *
  * T108: Added comprehensive error handling with user-friendly messages.
+ *
+ * Phase 3: Dual-write pattern for cloud sync
+ * - Write to IndexedDB (local-first)
+ * - Attempt API call (if online)
+ * - Queue operation (if offline or API fails)
  */
 export class StorageService {
+  private apiService: TaskApiService;
+
+  constructor() {
+    this.apiService = new TaskApiService();
+  }
   /**
    * Gets the highest priority incomplete task (rank 0 at top level).
    *
@@ -91,6 +104,11 @@ export class StorageService {
    * - createdAt: current timestamp
    * - updatedAt: current timestamp
    *
+   * Phase 3: Dual-write pattern
+   * 1. Write to IndexedDB (always succeeds - local-first)
+   * 2. Try API call (if online)
+   * 3. Queue operation (if offline or API fails)
+   *
    * @param taskData - Partial task object with at least title and rank
    * @returns Promise resolving to the created task with all fields populated
    * @throws {StorageError} If database operation fails
@@ -120,9 +138,46 @@ export class StorageService {
         updatedAt: now,
         userId: taskData.userId,
         collaborators: taskData.collaborators,
+        syncStatus: 'pending', // Phase 3: Mark as pending for sync
       };
 
+      // Step 1: Write to IndexedDB (local-first, always succeeds)
       await addTask(newTask);
+
+      // Step 2: Try API call (dual-write)
+      if (syncService.isOnline()) {
+        try {
+          await this.apiService.createTask(newTask);
+          // Success: Mark as synced
+          await updateTask(newTask.id, {
+            syncStatus: 'synced',
+            lastSyncedAt: new Date(),
+            serverUpdatedAt: newTask.updatedAt,
+          });
+          console.log('[StorageService] Task created and synced:', newTask.id);
+        } catch (apiError) {
+          console.error('[StorageService] API create failed, queuing:', apiError);
+          // API failed: Queue operation for retry
+          await addToSyncQueue({
+            taskId: newTask.id,
+            operation: 'create',
+            payload: newTask,
+            timestamp: new Date(),
+            retryCount: 0,
+          });
+        }
+      } else {
+        // Offline: Queue operation
+        console.log('[StorageService] Offline, queuing create operation');
+        await addToSyncQueue({
+          taskId: newTask.id,
+          operation: 'create',
+          payload: newTask,
+          timestamp: new Date(),
+          retryCount: 0,
+        });
+      }
+
       return newTask;
     } catch (error) {
       throw new StorageError(
@@ -176,6 +231,11 @@ export class StorageService {
    * Automatically sets updatedAt timestamp to current time.
    * Preserves createdAt and other fields not included in updates.
    *
+   * Phase 3: Dual-write pattern
+   * 1. Write to IndexedDB (always succeeds - local-first)
+   * 2. Try API call (if online)
+   * 3. Queue operation (if offline or API fails)
+   *
    * @param id - Task ID
    * @param updates - Partial task object with fields to update
    * @returns Promise resolving to number of updated records (1 if successful, 0 if not found)
@@ -183,7 +243,47 @@ export class StorageService {
    */
   async updateTask(id: string, updates: Partial<Task>): Promise<number> {
     try {
-      return await updateTask(id, updates);
+      // Step 1: Write to IndexedDB (local-first)
+      const updatesWithSync = {
+        ...updates,
+        syncStatus: 'pending' as const, // Mark as pending for sync
+      };
+      const result = await updateTask(id, updatesWithSync);
+
+      // Step 2: Try API call (dual-write)
+      if (syncService.isOnline()) {
+        try {
+          await this.apiService.updateTask(id, updates);
+          // Success: Mark as synced
+          await updateTask(id, {
+            syncStatus: 'synced',
+            lastSyncedAt: new Date(),
+          });
+          console.log('[StorageService] Task updated and synced:', id);
+        } catch (apiError) {
+          console.error('[StorageService] API update failed, queuing:', apiError);
+          // API failed: Queue operation for retry
+          await addToSyncQueue({
+            taskId: id,
+            operation: 'update',
+            payload: updates,
+            timestamp: new Date(),
+            retryCount: 0,
+          });
+        }
+      } else {
+        // Offline: Queue operation
+        console.log('[StorageService] Offline, queuing update operation');
+        await addToSyncQueue({
+          taskId: id,
+          operation: 'update',
+          payload: updates,
+          timestamp: new Date(),
+          retryCount: 0,
+        });
+      }
+
+      return result;
     } catch (error) {
       throw new StorageError(
         'Failed to update task. Please try again.',
