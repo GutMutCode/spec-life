@@ -36,6 +36,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Task } from '@shared/Task';
 import { getPriorityColor, isOverdue, formatDeadline } from '@/lib/utils';
 import { validateTaskTitle, validateDescription, validateDeadline } from '@/lib/validation';
+import SyncStatusBadge from './SyncStatusBadge';
 
 /**
  * Props for TaskCard component
@@ -870,6 +871,9 @@ function TaskCard({
             #{task.rank}
           </span>
         )}
+
+        {/* Cloud Sync Status Badge (Phase 2) */}
+        <SyncStatusBadge status={task.syncStatus} size="small" />
       </div>
 
       {/* Description */}
@@ -1103,7 +1107,8 @@ export default memo(TaskCard, (prevProps, nextProps) => {
     prevProps.task.rank === nextProps.task.rank &&
     prevProps.task.deadline?.getTime() === nextProps.task.deadline?.getTime() &&
     prevProps.task.completedAt?.getTime() === nextProps.task.completedAt?.getTime() &&
-    JSON.stringify(prevProps.task.collaborators) === JSON.stringify(nextProps.task.collaborators);
+    JSON.stringify(prevProps.task.collaborators) === JSON.stringify(nextProps.task.collaborators) &&
+    prevProps.task.syncStatus === nextProps.task.syncStatus; // Phase 2: Include sync status
 
   // ===== COMPARE PRIMITIVE PROPS =====
   const propsEqual =

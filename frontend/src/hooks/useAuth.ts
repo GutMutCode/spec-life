@@ -25,6 +25,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, getErrorMessage } from '@/lib/api';
+import { syncService } from '@/services/SyncService';
 
 /**
  * User data structure
@@ -143,6 +144,17 @@ export function useAuth(): UseAuthReturn {
       localStorage.setItem('user', JSON.stringify(userData));
 
       setUser(userData);
+
+      // Phase 2: Trigger initial sync after successful login
+      // Don't block login if sync fails
+      try {
+        console.log('[useAuth] Login successful, triggering initial sync...');
+        await syncService.initialSync();
+        console.log('[useAuth] Initial sync completed');
+      } catch (syncError) {
+        console.error('[useAuth] Initial sync failed, will retry in background:', syncError);
+        // Don't throw - sync will retry automatically in background
+      }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
       setError(errorMessage);
@@ -173,6 +185,17 @@ export function useAuth(): UseAuthReturn {
       localStorage.setItem('user', JSON.stringify(userData));
 
       setUser(userData);
+
+      // Phase 2: Trigger initial sync after successful registration
+      // Don't block registration if sync fails
+      try {
+        console.log('[useAuth] Registration successful, triggering initial sync...');
+        await syncService.initialSync();
+        console.log('[useAuth] Initial sync completed');
+      } catch (syncError) {
+        console.error('[useAuth] Initial sync failed, will retry in background:', syncError);
+        // Don't throw - sync will retry automatically in background
+      }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
       setError(errorMessage);

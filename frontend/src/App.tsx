@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
@@ -11,6 +12,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ShortcutsModal from './components/ShortcutsModal';
 import { useShortcutsHelp } from './hooks/useShortcutsHelp';
+import { syncService } from './services/SyncService';
 
 /**
  * Main application component with routing configuration.
@@ -26,6 +28,11 @@ import { useShortcutsHelp } from './hooks/useShortcutsHelp';
  * - /tasks : All tasks view (US3)
  * - /history : Completed tasks history (US5 - T076)
  *
+ * CLOUD SYNC (Phase 2):
+ * - SyncService starts on app mount
+ * - Background sync every 5 minutes
+ * - Listens for online/focus events
+ *
  * T105: Wrapped entire app with ErrorBoundary for error handling
  * T107: Added ToastProvider for success/error notifications
  * T011: Added keyboard shortcuts help modal (002-ui)
@@ -33,6 +40,22 @@ import { useShortcutsHelp } from './hooks/useShortcutsHelp';
 function App() {
   // T011: Keyboard shortcuts help modal state (002-ui)
   const { isOpen, close } = useShortcutsHelp();
+
+  // Phase 2: Start background sync service
+  useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('auth_token');
+
+    if (token) {
+      console.log('[App] User logged in, starting sync service...');
+      syncService.start();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      syncService.stop();
+    };
+  }, []);
 
   return (
     <ErrorBoundary>

@@ -128,13 +128,57 @@ export class SyncService {
   }
 
   /**
+   * Perform initial sync on login or app start
+   *
+   * WORKFLOW (Phase 2):
+   * 1. Fetch all tasks from server
+   * 2. Fetch all local tasks from IndexedDB
+   * 3. Merge using Last-Write-Wins strategy
+   * 4. Mark local-only tasks as 'pending'
+   * 5. Mark synced tasks as 'synced'
+   *
+   * CONFLICT RESOLUTION:
+   * - Server wins if server.updatedAt > local.updatedAt
+   * - Keep local if not on server (user's offline work)
+   *
+   * @returns {Promise<void>}
+   * @throws {Error} If initial sync fails
+   */
+  async initialSync(): Promise<void> {
+    console.log('[SyncService] Starting initial sync...');
+
+    if (!this.isOnline()) {
+      console.log('[SyncService] Offline, skipping initial sync');
+      return;
+    }
+
+    try {
+      // 1. Fetch all tasks from server
+      const serverTasks = await this.fetchServerTasks();
+      console.log(`[SyncService] Fetched ${serverTasks.length} tasks from server`);
+
+      // 2. Fetch all local tasks
+      const localTasks = await db.tasks.toArray();
+      console.log(`[SyncService] Found ${localTasks.length} local tasks`);
+
+      // 3. Merge tasks
+      await this.mergeTasks(serverTasks, localTasks);
+
+      console.log('[SyncService] Initial sync completed');
+    } catch (error) {
+      console.error('[SyncService] Initial sync failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Trigger manual sync
    *
    * WORKFLOW:
    * 1. Check if already syncing (prevent concurrent syncs)
    * 2. Check network connectivity
    * 3. Process offline queue
-   * 4. Fetch updates from server (Phase 2+)
+   * 4. Fetch updates from server (Phase 2)
    * 5. Resolve conflicts (Phase 5+)
    *
    * @returns {Promise<void>}
@@ -155,11 +199,11 @@ export class SyncService {
       this.isSyncing = true;
       console.log('[SyncService] Starting sync...');
 
-      // Phase 1: Just process queue (no actual API calls yet)
+      // Phase 1: Process offline queue (placeholder for now)
       await this.processQueue();
 
-      // TODO Phase 2: Fetch updates from server
-      // await this.fetchServerUpdates();
+      // Phase 2: Fetch updates from server
+      await this.fetchServerUpdates();
 
       // TODO Phase 5: Resolve conflicts
       // await this.resolveConflicts();
@@ -285,6 +329,143 @@ export class SyncService {
     //     await this.apiService.deleteTask(entry.taskId);
     //     break;
     // }
+  }
+
+  // ============================================================================
+  // SERVER SYNC (Phase 2)
+  // ============================================================================
+
+  /**
+   * Fetch all tasks from server
+   *
+   * Calls GET /api/tasks to retrieve user's tasks from PostgreSQL.
+   *
+   * @private
+   * @returns {Promise<Task[]>} Array of tasks from server
+   * @throws {Error} If API call fails
+   */
+  private async fetchServerTasks(): Promise<Task[]> {
+    try {
+      const tasks = await this.apiService.listTasks();
+      return tasks;
+    } catch (error) {
+      console.error('[SyncService] Failed to fetch server tasks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch incremental updates from server
+   *
+   * Only fetches tasks updated since last sync (more efficient than full fetch).
+   *
+   * PHASE 2 (Current):
+   * - Fetches all tasks (no incremental yet)
+   *
+   * FUTURE:
+   * - Use ?updatedAfter=<timestamp> query param
+   * - Only fetch changed tasks
+   *
+   * @private
+   * @returns {Promise<void>}
+   */
+  private async fetchServerUpdates(): Promise<void> {
+    console.log('[SyncService] Fetching server updates...');
+
+    try {
+      const serverTasks = await this.fetchServerTasks();
+      const localTasks = await db.tasks.toArray();
+
+      await this.mergeTasks(serverTasks, localTasks);
+    } catch (error) {
+      console.error('[SyncService] Failed to fetch server updates:', error);
+      // Don't throw - continue with local data
+    }
+  }
+
+  /**
+   * Merge server tasks with local tasks
+   *
+   * STRATEGY: Last-Write-Wins (LWW)
+   * - Server wins if: server.updatedAt > local.updatedAt
+   * - Local wins if: local.updatedAt > server.updatedAt
+   * - Keep local-only tasks (not on server)
+   *
+   * WORKFLOW:
+   * 1. For each server task:
+   *    - Find matching local task by ID
+   *    - If not found OR server newer: Update local with server version
+   *    - Mark as 'synced'
+   * 2. For each local-only task:
+   *    - Mark as 'pending' (needs upload)
+   *
+   * @private
+   * @param {Task[]} serverTasks - Tasks from server
+   * @param {Task[]} localTasks - Tasks from IndexedDB
+   * @returns {Promise<void>}
+   */
+  private async mergeTasks(serverTasks: Task[], localTasks: Task[]): Promise<void> {
+    console.log('[SyncService] Merging tasks...');
+
+    // Create map of local tasks for quick lookup
+    const localTaskMap = new Map(localTasks.map(t => [t.id, t]));
+
+    // Process server tasks
+    for (const serverTask of serverTasks) {
+      const localTask = localTaskMap.get(serverTask.id);
+
+      if (!localTask) {
+        // New task from server - add to local
+        console.log(`[SyncService] Adding server task: ${serverTask.id}`);
+        await db.tasks.put({
+          ...serverTask,
+          syncStatus: 'synced',
+          lastSyncedAt: new Date(),
+          serverUpdatedAt: serverTask.updatedAt,
+        });
+      } else {
+        // Task exists locally - check which is newer
+        const serverUpdated = new Date(serverTask.updatedAt).getTime();
+        const localUpdated = new Date(localTask.updatedAt).getTime();
+
+        if (serverUpdated > localUpdated) {
+          // Server wins - update local
+          console.log(`[SyncService] Server newer for task: ${serverTask.id}`);
+          await db.tasks.put({
+            ...serverTask,
+            syncStatus: 'synced',
+            lastSyncedAt: new Date(),
+            serverUpdatedAt: serverTask.updatedAt,
+          });
+        } else if (localUpdated > serverUpdated) {
+          // Local wins - mark as pending for upload (Phase 3)
+          console.log(`[SyncService] Local newer for task: ${localTask.id}`);
+          await db.tasks.update(localTask.id, {
+            syncStatus: 'pending',
+          });
+        } else {
+          // Same timestamp - mark as synced
+          await db.tasks.update(localTask.id, {
+            syncStatus: 'synced',
+            lastSyncedAt: new Date(),
+            serverUpdatedAt: serverTask.updatedAt,
+          });
+        }
+
+        // Remove from map (processed)
+        localTaskMap.delete(serverTask.id);
+      }
+    }
+
+    // Remaining local tasks don't exist on server - mark as pending
+    for (const [taskId, localTask] of localTaskMap) {
+      console.log(`[SyncService] Local-only task: ${taskId}`);
+      await db.tasks.update(taskId, {
+        syncStatus: 'pending',
+      });
+    }
+
+    console.log('[SyncService] Merge completed');
   }
 
   // ============================================================================
