@@ -148,7 +148,20 @@ interface TaskListProps {
  * - Transform and transition applied for smooth movement
  * - Original position maintained via CSS
  *
- * @param props - Task card props with drag handlers
+ * @component
+ * @param {Object} props - Task card props with drag handlers
+ * @param {Task} props.task - Task data to display
+ * @param {boolean} props.showRank - Show rank badge
+ * @param {'prominent' | 'compact'} props.variant - Display variant
+ * @param {boolean} props.editable - Enable inline editing
+ * @param {function} [props.onSave] - Save callback
+ * @param {function} [props.onComplete] - Complete callback
+ * @param {function} [props.onDelete] - Delete callback
+ * @param {function} [props.onAddSubtask] - Add subtask callback
+ * @param {boolean} [props.hasSubtasks] - Whether task has children
+ * @param {boolean} [props.isExpanded] - Whether subtasks are expanded
+ * @param {function} [props.onToggleExpand] - Toggle expand callback
+ * @returns {JSX.Element} Sortable task card with drag handle
  */
 function SortableTaskCard({
   task,
@@ -230,6 +243,23 @@ function SortableTaskCard({
  *
  * Per FR-001: Tasks are displayed in priority order (rank 0 first).
  * Per FR-032: Provides visual feedback during drag operations.
+ *
+ * @component
+ * @param {TaskListProps} props - Component props
+ * @param {Task[]} props.tasks - Array of tasks to display, should be pre-sorted by rank
+ * @param {boolean} [props.showRank=true] - Show rank badges on cards
+ * @param {'prominent' | 'compact'} [props.variant='compact'] - Display variant
+ * @param {string} [props.className=''] - Optional CSS className
+ * @param {boolean} [props.draggable=false] - Enable drag-and-drop reordering
+ * @param {boolean} [props.editable=false] - Enable inline editing on cards
+ * @param {function} [props.onTasksChange] - Callback after drag reorder completes
+ * @param {function} [props.onComplete] - Callback when task marked complete
+ * @param {function} [props.onDelete] - Callback when task deleted
+ * @param {function} [props.onAddSubtask] - Callback when user clicks "Add Subtask"
+ * @param {function} [props.hasSubtasks] - Function to check if task has children
+ * @param {function} [props.isExpanded] - Function to check if task's children are visible
+ * @param {function} [props.onToggleExpand] - Callback when user toggles expand/collapse
+ * @returns {JSX.Element} Rendered task list component
  */
 export default function TaskList({
   tasks,
@@ -304,9 +334,10 @@ export default function TaskList({
    * - Triggers DragOverlay to show preview
    * - Called by DndContext when drag begins
    *
-   * @param event - DragStartEvent from @dnd-kit
+   * @param {DragStartEvent} event - DragStartEvent from @dnd-kit
+   * @returns {void}
    */
-  const handleDragStart = useCallback((event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent): void => {
     setActiveId(event.active.id as string);
   }, []);
 
@@ -341,9 +372,11 @@ export default function TaskList({
    * If storage fails, UI reverts to original state.
    * Provides fast UX with error recovery.
    *
-   * @param event - DragEndEvent from @dnd-kit
+   * @async
+   * @param {DragEndEvent} event - DragEndEvent from @dnd-kit
+   * @returns {Promise<void>}
    */
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent): Promise<void> => {
     const { active, over } = event;
 
     // Guard: No drop target or dropped on self
@@ -405,8 +438,10 @@ export default function TaskList({
    * - Clears activeId (hides DragOverlay)
    * - Called when user presses Escape or drag is cancelled
    * - No storage changes (drag was cancelled)
+   *
+   * @returns {void}
    */
-  const handleDragCancel = useCallback(() => {
+  const handleDragCancel = useCallback((): void => {
     setActiveId(null);
   }, []);
 
@@ -422,10 +457,12 @@ export default function TaskList({
    * - Notifies parent to refresh task list
    * - Used by inline editing in TaskCard
    *
-   * @param taskId - ID of task being edited
-   * @param updates - Partial task object with changed fields
+   * @async
+   * @param {string} taskId - ID of task being edited
+   * @param {Partial<Task>} updates - Partial task object with changed fields
+   * @returns {Promise<void>}
    */
-  const handleSave = useCallback(async (taskId: string, updates: Partial<Task>) => {
+  const handleSave = useCallback(async (taskId: string, updates: Partial<Task>): Promise<void> => {
     await storageService.updateTask(taskId, updates);
     if (onTasksChange) {
       onTasksChange();

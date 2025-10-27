@@ -102,6 +102,23 @@ interface TaskCardProps {
  * - Drag-and-drop support (T062, T064)
  * - Responsive design
  * - Memoized for performance (T115)
+ *
+ * @component
+ * @param {TaskCardProps} props - Component props
+ * @param {Task} props.task - Task data to display
+ * @param {boolean} [props.showRank=false] - Show rank badge with priority color coding
+ * @param {'prominent' | 'compact'} [props.variant='compact'] - Display mode
+ * @param {boolean} [props.editable=false] - Enable inline editing functionality
+ * @param {function} [props.onSave] - Callback when task is saved after editing
+ * @param {function} [props.onComplete] - Callback when task is completed
+ * @param {function} [props.onDelete] - Callback when task is deleted
+ * @param {function} [props.onAddSubtask] - Callback when user wants to add a subtask
+ * @param {any} [props.dragHandleProps] - Additional drag-and-drop props from react-beautiful-dnd
+ * @param {boolean} [props.isDragging=false] - Visual feedback during drag
+ * @param {boolean} [props.hasSubtasks=false] - Whether this task has child tasks
+ * @param {boolean} [props.isExpanded=false] - Whether subtasks are currently expanded
+ * @param {function} [props.onToggleExpand] - Callback when expand/collapse is toggled
+ * @returns {JSX.Element} Rendered task card component
  */
 function TaskCard({
   task,
@@ -196,8 +213,10 @@ function TaskCard({
   /**
    * Cancel delete operation and close confirmation dialog
    * Also used as escape callback for focus trap (T113)
+   *
+   * @returns {void}
    */
-  const handleDeleteCancel = () => {
+  const handleDeleteCancel = (): void => {
     setShowDeleteDialog(false);
   };
 
@@ -224,8 +243,10 @@ function TaskCard({
    * - Adds name to editCollaborators array
    * - Clears input field after successful add
    * - Does nothing if validation fails
+   *
+   * @returns {void}
    */
-  const addCollaborator = () => {
+  const addCollaborator = (): void => {
     const name = collaboratorInput.trim();
     if (name && !editCollaborators.includes(name)) {
       setEditCollaborators([...editCollaborators, name]);
@@ -236,9 +257,10 @@ function TaskCard({
   /**
    * Remove collaborator from task
    *
-   * @param name - Collaborator name to remove (exact match required)
+   * @param {string} name - Collaborator name to remove (exact match required)
+   * @returns {void}
    */
-  const removeCollaborator = (name: string) => {
+  const removeCollaborator = (name: string): void => {
     setEditCollaborators(editCollaborators.filter((c) => c !== name));
   };
 
@@ -250,8 +272,11 @@ function TaskCard({
    * - Other keys: Default browser behavior
    *
    * Prevents form submission when Enter is pressed.
+   *
+   * @param {React.KeyboardEvent<HTMLInputElement>} e - Keyboard event
+   * @returns {void}
    */
-  const handleCollaboratorKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleCollaboratorKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
       e.preventDefault();
       addCollaborator();
@@ -273,8 +298,10 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Edit" button in view mode
+   *
+   * @returns {void}
    */
-  const handleEdit = () => {
+  const handleEdit = (): void => {
     setEditTitle(task.title);
     setEditDescription(task.description || '');
     setEditDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '');
@@ -294,8 +321,10 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Cancel" button in edit mode
+   *
+   * @returns {void}
    */
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     setIsEditing(false);
     setErrors({});
   };
@@ -325,8 +354,12 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Save" button in edit mode
+   *
+   * @async
+   * @returns {Promise<void>}
+   * @throws {Error} If save operation fails (caught and displayed as validation error)
    */
-  const handleSave = async () => {
+  const handleSave = async (): Promise<void> => {
     // ===== VALIDATION PHASE =====
     const newErrors: { title?: string; description?: string; deadline?: string } = {};
 
@@ -406,8 +439,11 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Mark Complete" button
+   *
+   * @async
+   * @returns {Promise<void>}
    */
-  const handleComplete = async () => {
+  const handleComplete = async (): Promise<void> => {
     if (!onComplete) return;
 
     setIsCompleting(true);
@@ -431,8 +467,10 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Delete" button
+   *
+   * @returns {void}
    */
-  const handleDeleteClick = () => {
+  const handleDeleteClick = (): void => {
     setShowDeleteDialog(true);
   };
 
@@ -457,8 +495,11 @@ function TaskCard({
    *
    * TRIGGERED BY:
    * - User clicks "Delete" button in confirmation dialog
+   *
+   * @async
+   * @returns {Promise<void>}
    */
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = async (): Promise<void> => {
     if (!onDelete) return;
 
     setIsDeleting(true);
