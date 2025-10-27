@@ -26,6 +26,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, getErrorMessage } from '@/lib/api';
 import { syncService } from '@/services/SyncService';
+import { useToast } from '@/components/Toast';
 
 /**
  * User data structure
@@ -102,6 +103,7 @@ export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   /**
    * Restore authentication state from localStorage on mount
@@ -153,7 +155,8 @@ export function useAuth(): UseAuthReturn {
         console.log('[useAuth] Initial sync completed');
       } catch (syncError) {
         console.error('[useAuth] Initial sync failed, will retry in background:', syncError);
-        // Don't throw - sync will retry automatically in background
+        // Notify user that they're working offline
+        showToast('Working offline. Data will sync when connection is restored.', 'info');
       }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
@@ -194,7 +197,8 @@ export function useAuth(): UseAuthReturn {
         console.log('[useAuth] Initial sync completed');
       } catch (syncError) {
         console.error('[useAuth] Initial sync failed, will retry in background:', syncError);
-        // Don't throw - sync will retry automatically in background
+        // Notify user that they're working offline
+        showToast('Working offline. Data will sync when connection is restored.', 'info');
       }
     } catch (err) {
       const errorMessage = getErrorMessage(err);
