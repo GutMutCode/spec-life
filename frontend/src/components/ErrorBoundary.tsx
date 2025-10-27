@@ -4,11 +4,39 @@
  * Catches JavaScript errors anywhere in the child component tree,
  * logs those errors, and displays a fallback UI.
  *
+ * FEATURES:
+ * - Catches React component errors via componentDidCatch lifecycle
+ * - Reports errors to Sentry for monitoring and debugging
+ * - Displays user-friendly fallback UI with retry and reload options
+ * - Shows detailed error info in development mode
+ * - Provides error reset capability without page reload
+ *
+ * SENTRY INTEGRATION:
+ * - Automatic error reporting to Sentry when configured
+ * - Includes component stack trace for debugging
+ * - Captures error context (user info, breadcrumbs, etc.)
+ * - Only sends reports when VITE_SENTRY_DSN is set
+ *
+ * USAGE:
+ * ```tsx
+ * <ErrorBoundary>
+ *   <App />
+ * </ErrorBoundary>
+ * ```
+ *
+ * CONFIGURATION:
+ * Set VITE_SENTRY_DSN environment variable to enable error reporting.
+ * See .env.example for configuration details.
+ *
  * Created: 2025-10-16
  * Task: T105
+ * Updated: 2025-10-27 - Added Sentry integration
+ *
+ * @component
  */
 
 import { Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 
 interface Props {
   children: ReactNode;
@@ -36,6 +64,24 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  /**
+   * Called when an error is caught by the error boundary
+   *
+   * BEHAVIOR:
+   * 1. Logs error to console (development only)
+   * 2. Reports error to Sentry (if configured)
+   * 3. Updates component state to trigger fallback UI
+   *
+   * SENTRY REPORTING:
+   * - Captures error with full stack trace
+   * - Includes React component stack for debugging
+   * - Attaches error context (breadcrumbs, user info, etc.)
+   * - Only sends when VITE_SENTRY_DSN is configured
+   *
+   * @param {Error} error - The error that was thrown
+   * @param {ErrorInfo} errorInfo - React error info with component stack
+   * @returns {void}
+   */
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Log error to console in development
     console.error('ErrorBoundary caught an error:', error, errorInfo);
@@ -46,10 +92,26 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     });
 
-    // TODO: Send error to error reporting service (e.g., Sentry)
-    // reportError(error, errorInfo);
+    // Report error to Sentry (if configured)
+    Sentry.withScope((scope) => {
+      // Add React component stack to Sentry context
+      scope.setContext('react', {
+        componentStack: errorInfo.componentStack,
+      });
+
+      // Capture the error with additional context
+      Sentry.captureException(error);
+    });
   }
 
+  /**
+   * Reset error boundary state
+   *
+   * Clears error state and attempts to re-render children.
+   * Useful for "Try Again" functionality without full page reload.
+   *
+   * @returns {void}
+   */
   handleReset = (): void => {
     this.setState({
       hasError: false,

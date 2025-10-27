@@ -1,3 +1,24 @@
+/**
+ * @file StorageService.ts
+ * @description Business logic layer for task storage operations
+ *
+ * CURRENT IMPLEMENTATION: Local-only (IndexedDB)
+ * - All CRUD operations performed in IndexedDB only
+ * - No backend synchronization
+ * - Auto-generated fields (id, timestamps) created client-side
+ *
+ * TODO: Cloud Sync Integration
+ * - [ ] Add API client for backend communication
+ * - [ ] Implement dual-write pattern (IndexedDB + API)
+ * - [ ] Add sync status tracking per operation
+ * - [ ] Handle authentication token in API calls
+ * - [ ] Implement retry logic for failed API calls
+ * - [ ] Add conflict resolution for server vs local state
+ * - [ ] Sync completed tasks to backend for 90-day retention
+ *
+ * @see /frontend/ARCHITECTURE.md for system architecture
+ */
+
 import {
   getIncompleteTasks,
   addTask,
@@ -49,8 +70,8 @@ export class StorageService {
   async getTopTask(): Promise<Task | undefined> {
     try {
       const activeTasks = await getIncompleteTasks();
-      // Filter for top-level tasks only (parentId === null)
-      const topLevelTasks = activeTasks.filter((task) => task.parentId === null);
+      // Filter for top-level tasks only (parentId === null or undefined)
+      const topLevelTasks = activeTasks.filter((task) => task.parentId === null || task.parentId === undefined);
       return topLevelTasks.length > 0 ? topLevelTasks[0] : undefined;
     } catch (error) {
       throw new StorageError(

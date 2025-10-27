@@ -1,3 +1,36 @@
+/**
+ * @file useTasks.ts
+ * @description React hook for task state management with optimistic UI updates
+ *
+ * CURRENT IMPLEMENTATION: Local-only (IndexedDB via StorageService)
+ * - Manages React state for topTask and activeTasks arrays
+ * - Implements optimistic UI updates for instant feedback (T117)
+ * - Calls StorageService for all CRUD operations
+ * - Reverts optimistic updates on error
+ * - No backend synchronization
+ *
+ * ARCHITECTURE:
+ * - Component calls useTasks hook
+ * - Hook updates React state optimistically
+ * - Hook calls StorageService methods
+ * - StorageService calls IndexedDB layer
+ * - Hook refreshes state from IndexedDB on success
+ * - Hook reverts state on error
+ *
+ * TODO: Cloud Sync Integration
+ * - [ ] Add sync status state (syncing, synced, offline, error)
+ * - [ ] Call API service alongside StorageService (dual-write)
+ * - [ ] Handle API errors without reverting IndexedDB writes
+ * - [ ] Queue failed API calls for retry when online
+ * - [ ] Show sync status indicators in UI
+ * - [ ] Add useAuth hook integration for authentication token
+ * - [ ] Implement conflict resolution UI when server rejects update
+ * - [ ] Add background sync polling for multi-device updates
+ * - [ ] Handle real-time updates via WebSocket or polling
+ *
+ * @see /frontend/ARCHITECTURE.md for system architecture
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '@/services/StorageService';
 import type { Task } from '@shared/Task';
