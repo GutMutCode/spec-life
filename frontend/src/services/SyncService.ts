@@ -263,14 +263,10 @@ export class SyncService {
   /**
    * Process offline operation queue
    *
-   * PHASE 1 (Current):
-   * - Logs queue entries (no actual syncing)
-   * - Validates queue structure
-   *
-   * PHASE 3 (Future):
+   * PHASE 3: Implemented
    * - Execute operations via API
    * - Remove on success, increment retry on failure
-   * - Exponential backoff for retries
+   * - Exponential backoff for retries (skip if max retries exceeded)
    *
    * @private
    * @returns {Promise<void>}
@@ -293,20 +289,34 @@ export class SyncService {
         retryCount: entry.retryCount,
       });
 
-      // TODO Phase 3: Execute operation
-      // try {
-      //   await this.executeQueueEntry(entry);
-      //   await removeFromSyncQueue(entry.queueId!);
-      // } catch (error) {
-      //   await incrementSyncRetry(entry.queueId!, error.message);
-      // }
+      // Check if max retries exceeded
+      if (entry.retryCount >= this.MAX_RETRY_COUNT) {
+        console.error('[SyncService] Max retries exceeded for entry:', entry.queueId);
+        // Mark task as error (optional: could remove from queue)
+        await db.tasks.update(entry.taskId, { syncStatus: 'error' });
+        await removeFromSyncQueue(entry.queueId!);
+        continue;
+      }
+
+      // Execute operation
+      try {
+        await this.executeQueueEntry(entry);
+        await removeFromSyncQueue(entry.queueId!);
+        console.log('[SyncService] Queue entry processed successfully:', entry.queueId);
+      } catch (error) {
+        console.error('[SyncService] Queue entry failed:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        await incrementSyncRetry(entry.queueId!, errorMessage);
+      }
     }
+
+    console.log('[SyncService] Queue processing completed');
   }
 
   /**
    * Execute a single queue entry
    *
-   * PHASE 3 (Future):
+   * PHASE 3: Implemented
    * Calls appropriate API method based on operation type.
    *
    * @private
@@ -315,20 +325,38 @@ export class SyncService {
    * @throws {Error} If API call fails
    */
   private async executeQueueEntry(entry: SyncQueueEntry): Promise<void> {
-    // TODO Phase 3: Implement
-    console.log('[SyncService] Would execute:', entry.operation, entry.taskId);
+    console.log('[SyncService] Executing queue entry:', entry.operation, entry.taskId);
 
-    // switch (entry.operation) {
-    //   case 'create':
-    //     await this.apiService.createTask(entry.payload as Task);
-    //     break;
-    //   case 'update':
-    //     await this.apiService.updateTask(entry.taskId, entry.payload);
-    //     break;
-    //   case 'delete':
-    //     await this.apiService.deleteTask(entry.taskId);
-    //     break;
-    // }
+    switch (entry.operation) {
+      case 'create':
+        await this.apiService.createTask(entry.payload as Task);
+        // Update local syncStatus to 'synced'
+        await db.tasks.update(entry.taskId, {
+          syncStatus: 'synced',
+          lastSyncedAt: new Date(),
+        });
+        break;
+
+      case 'update':
+        await this.apiService.updateTask(entry.taskId, entry.payload);
+        // Update local syncStatus to 'synced'
+        await db.tasks.update(entry.taskId, {
+          syncStatus: 'synced',
+          lastSyncedAt: new Date(),
+        });
+        break;
+
+      case 'delete':
+        await this.apiService.deleteTask(entry.taskId);
+        // Task already deleted from local DB, nothing to update
+        break;
+
+      default:
+        console.error('[SyncService] Unknown operation:', (entry as any).operation);
+        throw new Error(`Unknown operation: ${(entry as any).operation}`);
+    }
+
+    console.log('[SyncService] Queue entry executed successfully:', entry.queueId);
   }
 
   // ============================================================================
