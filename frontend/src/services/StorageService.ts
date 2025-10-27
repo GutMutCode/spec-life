@@ -368,6 +368,11 @@ export class StorageService {
    * - Only shifts tasks with the same parentId (maintains hierarchy)
    * - Child tasks (subtasks) are deleted via CASCADE in database
    *
+   * Phase 4: Dual-write pattern
+   * 1. Delete from IndexedDB (local-first)
+   * 2. Try API call (if online)
+   * 3. Queue operation (if offline or API fails)
+   *
    * Per FR-025: "Delete task with confirmation dialog."
    *
    * @param id - Task ID
@@ -385,7 +390,7 @@ export class StorageService {
       const deletedRank = taskToDelete.rank;
       const parentId = taskToDelete.parentId;
 
-      // Delete the task (and all its subtasks via cascade)
+      // Step 1: Delete from IndexedDB (local-first)
       await deleteTask(id);
 
       // Get all tasks with same parentId and rank > deletedRank
@@ -403,6 +408,34 @@ export class StorageService {
         }));
 
         await bulkUpdateRanks(updates);
+      }
+
+      // Step 2: Try API call (dual-write)
+      if (syncService.isOnline()) {
+        try {
+          await this.apiService.deleteTask(id);
+          console.log('[StorageService] Task deleted and synced:', id);
+        } catch (apiError) {
+          console.error('[StorageService] API delete failed, queuing:', apiError);
+          // API failed: Queue operation for retry
+          await addToSyncQueue({
+            taskId: id,
+            operation: 'delete',
+            payload: {}, // No payload needed for delete
+            timestamp: new Date(),
+            retryCount: 0,
+          });
+        }
+      } else {
+        // Offline: Queue operation
+        console.log('[StorageService] Offline, queuing delete operation');
+        await addToSyncQueue({
+          taskId: id,
+          operation: 'delete',
+          payload: {},
+          timestamp: new Date(),
+          retryCount: 0,
+        });
       }
     } catch (error) {
       throw new StorageError(
