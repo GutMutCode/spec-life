@@ -51,6 +51,26 @@ import type { Task, SyncStatus } from '@shared/Task';
  *   └─── Error
  * ```
  */
+/**
+ * Performance metrics for sync operations (Phase 5)
+ */
+interface SyncMetrics {
+  /** Total sync operations performed */
+  totalSyncs: number;
+  /** Successful sync count */
+  successfulSyncs: number;
+  /** Failed sync count */
+  failedSyncs: number;
+  /** Last sync duration in milliseconds */
+  lastSyncDurationMs: number;
+  /** Average sync duration in milliseconds */
+  avgSyncDurationMs: number;
+  /** Total queue entries processed */
+  totalQueueEntries: number;
+  /** Last sync timestamp */
+  lastSyncTime?: Date;
+}
+
 export class SyncService {
   private apiService: TaskApiService;
   private isSyncing: boolean = false;
@@ -61,6 +81,16 @@ export class SyncService {
   private readonly SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_RETRY_COUNT = 5;
   private readonly RETRY_DELAY_MS = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff
+
+  // Phase 5: Performance metrics
+  private metrics: SyncMetrics = {
+    totalSyncs: 0,
+    successfulSyncs: 0,
+    failedSyncs: 0,
+    lastSyncDurationMs: 0,
+    avgSyncDurationMs: 0,
+    totalQueueEntries: 0,
+  };
 
   constructor() {
     this.apiService = new TaskApiService();
@@ -181,6 +211,10 @@ export class SyncService {
    * 4. Fetch updates from server (Phase 2)
    * 5. Resolve conflicts (Phase 5+)
    *
+   * PHASE 5: Performance monitoring
+   * - Tracks sync duration, success/failure rates
+   * - Logs metrics for debugging and optimization
+   *
    * @returns {Promise<void>}
    * @throws {Error} If sync fails critically
    */
@@ -195,6 +229,10 @@ export class SyncService {
       return;
     }
 
+    // Phase 5: Start performance tracking
+    const startTime = performance.now();
+    this.metrics.totalSyncs++;
+
     try {
       this.isSyncing = true;
       console.log('[SyncService] Starting sync...');
@@ -208,8 +246,23 @@ export class SyncService {
       // TODO Phase 5: Resolve conflicts
       // await this.resolveConflicts();
 
-      console.log('[SyncService] Sync completed successfully');
+      // Phase 5: Record successful sync
+      this.metrics.successfulSyncs++;
+      const duration = performance.now() - startTime;
+      this.metrics.lastSyncDurationMs = duration;
+      this.metrics.lastSyncTime = new Date();
+
+      // Update running average
+      const totalDuration = this.metrics.avgSyncDurationMs * (this.metrics.totalSyncs - 1) + duration;
+      this.metrics.avgSyncDurationMs = totalDuration / this.metrics.totalSyncs;
+
+      console.log('[SyncService] Sync completed successfully', {
+        duration: `${duration.toFixed(0)}ms`,
+        metrics: this.metrics,
+      });
     } catch (error) {
+      // Phase 5: Record failed sync
+      this.metrics.failedSyncs++;
       console.error('[SyncService] Sync failed:', error);
       throw error;
     } finally {
@@ -268,6 +321,11 @@ export class SyncService {
    * - Remove on success, increment retry on failure
    * - Exponential backoff for retries (skip if max retries exceeded)
    *
+   * PHASE 5: Bulk operations optimization
+   * - Collect all task updates during processing
+   * - Apply updates in bulk at the end (1 transaction instead of N)
+   * - Reduces IndexedDB overhead from O(n) to O(1)
+   *
    * @private
    * @returns {Promise<void>}
    */
@@ -281,6 +339,13 @@ export class SyncService {
 
     console.log(`[SyncService] Processing ${queue.length} queued operations...`);
 
+    // Phase 5: Track queue processing metrics
+    this.metrics.totalQueueEntries += queue.length;
+
+    // Phase 5: Collect updates for bulk operation
+    const taskUpdates: Map<string, Partial<Task>> = new Map();
+    const queueIdsToRemove: number[] = [];
+
     for (const entry of queue) {
       console.log('[SyncService] Queue entry:', {
         queueId: entry.queueId,
@@ -292,22 +357,50 @@ export class SyncService {
       // Check if max retries exceeded
       if (entry.retryCount >= this.MAX_RETRY_COUNT) {
         console.error('[SyncService] Max retries exceeded for entry:', entry.queueId);
-        // Mark task as error (optional: could remove from queue)
-        await db.tasks.update(entry.taskId, { syncStatus: 'error' });
-        await removeFromSyncQueue(entry.queueId!);
+        // Mark task as error
+        taskUpdates.set(entry.taskId, { syncStatus: 'error' });
+        queueIdsToRemove.push(entry.queueId!);
         continue;
       }
 
       // Execute operation
       try {
-        await this.executeQueueEntry(entry);
-        await removeFromSyncQueue(entry.queueId!);
+        const syncFields = await this.executeQueueEntry(entry);
+
+        // Phase 5: Collect update instead of applying immediately
+        if (syncFields) {
+          taskUpdates.set(entry.taskId, syncFields);
+        }
+
+        queueIdsToRemove.push(entry.queueId!);
         console.log('[SyncService] Queue entry processed successfully:', entry.queueId);
       } catch (error) {
         console.error('[SyncService] Queue entry failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await incrementSyncRetry(entry.queueId!, errorMessage);
       }
+    }
+
+    // Phase 5: Apply all task updates in bulk
+    if (taskUpdates.size > 0) {
+      console.log(`[SyncService] Applying ${taskUpdates.size} task updates in bulk...`);
+      await db.transaction('rw', db.tasks, async () => {
+        for (const [taskId, updates] of taskUpdates) {
+          await db.tasks.update(taskId, updates);
+        }
+      });
+      console.log('[SyncService] Bulk updates applied successfully');
+    }
+
+    // Phase 5: Remove processed queue entries in bulk
+    if (queueIdsToRemove.length > 0) {
+      console.log(`[SyncService] Removing ${queueIdsToRemove.length} queue entries in bulk...`);
+      await db.transaction('rw', db.syncQueue, async () => {
+        for (const queueId of queueIdsToRemove) {
+          await removeFromSyncQueue(queueId);
+        }
+      });
+      console.log('[SyncService] Bulk queue cleanup completed');
     }
 
     console.log('[SyncService] Queue processing completed');
@@ -319,44 +412,44 @@ export class SyncService {
    * PHASE 3: Implemented
    * Calls appropriate API method based on operation type.
    *
+   * PHASE 5: Returns sync fields for bulk update
+   * - No longer updates IndexedDB directly
+   * - Returns fields to be applied in bulk transaction
+   *
    * @private
    * @param {SyncQueueEntry} entry - Queue entry to execute
-   * @returns {Promise<void>}
+   * @returns {Promise<Partial<Task> | null>} Sync fields to update, or null for delete operations
    * @throws {Error} If API call fails
    */
-  private async executeQueueEntry(entry: SyncQueueEntry): Promise<void> {
+  private async executeQueueEntry(entry: SyncQueueEntry): Promise<Partial<Task> | null> {
     console.log('[SyncService] Executing queue entry:', entry.operation, entry.taskId);
+
+    const syncFields: Partial<Task> = {
+      syncStatus: 'synced',
+      lastSyncedAt: new Date(),
+    };
 
     switch (entry.operation) {
       case 'create':
         await this.apiService.createTask(entry.payload as Task);
-        // Update local syncStatus to 'synced'
-        await db.tasks.update(entry.taskId, {
-          syncStatus: 'synced',
-          lastSyncedAt: new Date(),
-        });
-        break;
+        console.log('[SyncService] Create API call succeeded:', entry.taskId);
+        return syncFields;
 
       case 'update':
         await this.apiService.updateTask(entry.taskId, entry.payload);
-        // Update local syncStatus to 'synced'
-        await db.tasks.update(entry.taskId, {
-          syncStatus: 'synced',
-          lastSyncedAt: new Date(),
-        });
-        break;
+        console.log('[SyncService] Update API call succeeded:', entry.taskId);
+        return syncFields;
 
       case 'delete':
         await this.apiService.deleteTask(entry.taskId);
-        // Task already deleted from local DB, nothing to update
-        break;
+        console.log('[SyncService] Delete API call succeeded:', entry.taskId);
+        // Task already deleted from local DB, no update needed
+        return null;
 
       default:
         console.error('[SyncService] Unknown operation:', (entry as any).operation);
         throw new Error(`Unknown operation: ${(entry as any).operation}`);
     }
-
-    console.log('[SyncService] Queue entry executed successfully:', entry.queueId);
   }
 
   // ============================================================================
@@ -535,6 +628,24 @@ export class SyncService {
       isSyncing: this.isSyncing,
       intervalActive: this.syncInterval !== undefined,
     };
+  }
+
+  /**
+   * Get performance metrics (Phase 5)
+   *
+   * Returns detailed sync performance data for monitoring and debugging.
+   *
+   * USAGE:
+   * ```typescript
+   * const metrics = syncService.getMetrics();
+   * console.log(`Success rate: ${(metrics.successfulSyncs / metrics.totalSyncs * 100).toFixed(1)}%`);
+   * console.log(`Avg duration: ${metrics.avgSyncDurationMs.toFixed(0)}ms`);
+   * ```
+   *
+   * @returns {SyncMetrics} Performance metrics
+   */
+  getMetrics(): SyncMetrics {
+    return { ...this.metrics };
   }
 }
 

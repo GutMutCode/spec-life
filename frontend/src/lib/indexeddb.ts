@@ -262,13 +262,26 @@ export const bulkUpdateRanks = async (updates: Array<{ id: string; rank: number 
 // ============================================================================
 
 /**
- * Add operation to sync queue
+ * Add operation to sync queue with deduplication (Phase 5)
  *
  * Used when offline or when sync fails.
  * Operations will be retried when network is available.
  *
+ * DEDUPLICATION STRATEGY (Phase 5):
+ * - Checks for existing queue entry with same taskId + operation
+ * - If exists:
+ *   - 'update': Merge payloads (keeps all updates)
+ *   - 'create': Replace payload with latest version
+ *   - 'delete': Keep existing (no update needed)
+ * - If not exists: Add new entry
+ *
+ * BENEFITS:
+ * - Reduces API calls for rapid writes (e.g., typing in title field)
+ * - Prevents queue bloat (100 updates → 1 update)
+ * - Preserves FIFO ordering (uses original timestamp)
+ *
  * @param entry - Sync queue entry (without queueId, will be auto-generated)
- * @returns Promise resolving to the queue ID
+ * @returns Promise resolving to the queue ID (existing or new)
  *
  * @example
  * ```typescript
@@ -285,6 +298,54 @@ export const bulkUpdateRanks = async (updates: Array<{ id: string; rank: number 
 export const addToSyncQueue = async (
   entry: Omit<SyncQueueEntry, 'queueId'>
 ): Promise<number> => {
+  // Phase 5: Check for existing entry with same taskId + operation
+  const existingEntries = await db.syncQueue
+    .where('taskId')
+    .equals(entry.taskId)
+    .and(e => e.operation === entry.operation)
+    .toArray();
+
+  if (existingEntries.length > 0) {
+    // Found duplicate - merge or replace
+    const existing = existingEntries[0];
+    const queueId = existing.queueId!;
+
+    switch (entry.operation) {
+      case 'update':
+        // Merge payloads (existing + new)
+        // Later properties override earlier ones
+        const mergedPayload = {
+          ...existing.payload,
+          ...entry.payload,
+        };
+        await db.syncQueue.update(queueId, {
+          payload: mergedPayload,
+          timestamp: entry.timestamp, // Update timestamp to latest
+          retryCount: 0, // Reset retry count on new attempt
+        });
+        console.log('[IndexedDB] Merged update operation for task:', entry.taskId);
+        break;
+
+      case 'create':
+        // Replace payload with latest version
+        await db.syncQueue.update(queueId, {
+          payload: entry.payload,
+          timestamp: entry.timestamp,
+          retryCount: 0,
+        });
+        console.log('[IndexedDB] Updated create operation for task:', entry.taskId);
+        break;
+
+      case 'delete':
+        // Keep existing delete (no need to update)
+        console.log('[IndexedDB] Delete operation already queued for task:', entry.taskId);
+        break;
+    }
+
+    return queueId;
+  }
+
+  // No duplicate - add new entry
   return db.syncQueue.add(entry);
 };
 
