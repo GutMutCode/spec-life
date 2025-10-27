@@ -5,20 +5,30 @@
 FROM node:20-alpine AS builder
 
 # Install pnpm
-RUN npm install -g pnpm@8
+RUN npm install -g pnpm@9
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
+# Copy root package files for workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Copy backend package files
+COPY backend/package.json ./backend/
 
-# Copy source code and config
-COPY tsconfig.json ./
-COPY src ./src
+# Copy shared package
+COPY shared ./shared/
+
+# Install dependencies (workspace aware)
+RUN pnpm install --no-frozen-lockfile
+
+# Copy backend source code and config
+COPY backend/tsconfig.json ./backend/
+COPY backend/src ./backend/src
+COPY backend/migrations ./backend/migrations
+
+# Change to backend directory for build
+WORKDIR /app/backend
 
 # Build TypeScript
 RUN pnpm build
@@ -27,7 +37,7 @@ RUN pnpm build
 FROM node:20-alpine AS production
 
 # Install pnpm
-RUN npm install -g pnpm@8
+RUN npm install -g pnpm@9
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -36,15 +46,24 @@ RUN addgroup -g 1001 -S nodejs && \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
+# Copy root package files for workspace
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# Copy backend package files
+COPY backend/package.json ./backend/
+
+# Copy shared package
+COPY shared ./shared/
 
 # Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --no-frozen-lockfile
 
 # Copy built files from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/backend/dist ./backend/dist
+COPY --from=builder /app/backend/migrations ./backend/migrations
+
+# Change to backend directory
+WORKDIR /app/backend
 
 # Change ownership to non-root user
 RUN chown -R nodejs:nodejs /app

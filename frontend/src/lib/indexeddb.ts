@@ -1,3 +1,25 @@
+/**
+ * @file indexeddb.ts
+ * @description IndexedDB database layer using Dexie.js for offline-first task storage
+ *
+ * CURRENT IMPLEMENTATION: Local-only storage
+ * - Dexie.js wrapper for IndexedDB
+ * - Two tables: tasks (Task entities), metadata (app-level data)
+ * - Compound indexes for efficient querying (completed+rank)
+ * - Schema migrations (v1 → v2) for backward compatibility
+ *
+ * TODO: Cloud Sync Integration
+ * - [ ] Add sync_status field to tasks (pending, synced, conflict)
+ * - [ ] Add last_synced_at timestamp field
+ * - [ ] Add server_updated_at field for conflict detection
+ * - [ ] Create sync queue table for offline operations
+ * - [ ] Add metadata for last successful sync timestamp
+ * - [ ] Implement schema migration v2 → v3 for sync fields
+ * - [ ] Add indexes for sync_status and last_synced_at
+ *
+ * @see /frontend/ARCHITECTURE.md for system architecture
+ */
+
 import Dexie, { type EntityTable } from 'dexie';
 import type { Task } from '@shared/Task';
 
